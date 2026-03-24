@@ -346,4 +346,47 @@ export class ManagerAuthService {
       }
     });
   }
+
+  // Méthodes pour la gestion du timesheet
+  getTimesheetEntries(): Observable<any> {
+    const currentManager = this.currentManagerValue;
+    if (!currentManager) {
+      throw new Error('Aucun manager connecté');
+    }
+    return this.http.get<any>(`${environment.apiUrl}/timesheet/manager/${currentManager.id}`, {
+      headers: {
+        'Authorization': `Bearer ${currentManager.token}`
+      }
+    });
+  }
+
+  getTimesheetStats(): Observable<any> {
+    const currentManager = this.currentManagerValue;
+    if (!currentManager) {
+      throw new Error('Aucun manager connecté');
+    }
+    return this.http.get<any>(`${environment.apiUrl}/timesheet/stats/manager/${currentManager.id}`, {
+      headers: {
+        'Authorization': `Bearer ${currentManager.token}`
+      }
+    });
+  }
+
+  getTimesheetByPeriod(period?: string, startDate?: string, endDate?: string): Observable<any> {
+    const currentManager = this.currentManagerValue;
+    if (!currentManager) {
+      throw new Error('Aucun manager connecté');
+    }
+    
+    let params = new URLSearchParams();
+    if (period) params.append('period', period);
+    if (startDate) params.append('startDate', startDate);
+    if (endDate) params.append('endDate', endDate);
+    
+    return this.http.get<any>(`${environment.apiUrl}/timesheet/period/manager/${currentManager.id}?${params.toString()}`, {
+      headers: {
+        'Authorization': `Bearer ${currentManager.token}`
+      }
+    });
+  }
 }

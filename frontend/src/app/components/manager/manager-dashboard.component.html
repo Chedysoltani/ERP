@@ -596,67 +596,6 @@
         </div>
       </div>
 
-      <!-- ══ TIMESHEET ══ -->
-      <div *ngIf="activeSection === 'timesheet'" class="section fade-in">
-        <div class="timesheet-header">
-          <div class="header-actions">
-            <div class="period-selector-group">
-              <select class="period-select">
-                <option>Cette semaine</option>
-                <option>Semaine dernière</option>
-                <option>Ce mois</option>
-              </select>
-              <button class="btn-secondary">
-                <i class="bi bi-download"></i>
-                Exporter
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <div class="timesheet-summary">
-          <div class="summary-card">
-            <h4>Total heures</h4>
-            <span class="summary-value">{{ totalHours }}h</span>
-          </div>
-          <div class="summary-card">
-            <h4>Moyenne/jour</h4>
-            <span class="summary-value">{{ avgHoursPerDay }}h</span>
-          </div>
-          <div class="summary-card">
-            <h4>Jours travaillés</h4>
-            <span class="summary-value">{{ workedDays }}</span>
-          </div>
-        </div>
-
-        <div class="timesheet-table-container">
-          <table class="timesheet-table">
-            <thead>
-              <tr>
-                <th>Date</th>
-                <th>Projet</th>
-                <th>Tâche</th>
-                <th>Durée</th>
-                <th>Statut</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr *ngFor="let entry of timesheetEntries">
-                <td>{{ entry.date | date:'dd/MM/yyyy' }}</td>
-                <td>{{ entry.project }}</td>
-                <td>{{ entry.task }}</td>
-                <td>{{ entry.duration }}h</td>
-                <td>
-                  <span class="status-badge" [class]="'status-' + entry.status">
-                    {{ entry.status === 'approved' ? 'Approuvé' : 'En attente' }}
-                  </span>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-
       <!-- ══ RÉUNIONS ══ -->
       <div *ngIf="activeSection === 'reunions'" class="section fade-in">
         <div class="meetings-header">
@@ -1342,4 +1281,202 @@
           name="taskDescription"
           [(ngModel)]="newTask.description" 
           rows="4"
-          placeholder="Décrivez
+          placeholder="Décrivez la tâche..."
+          class="form-textarea"></textarea>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label for="taskPriority">Priorité</label>
+          <select 
+            id="taskPriority" 
+            name="taskPriority"
+            [(ngModel)]="newTask.priority" 
+            class="form-select">
+            <option value="low">Basse</option>
+            <option value="medium">Moyenne</option>
+            <option value="high">Haute</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="taskAssignee">Assigné à</label>
+          <select 
+            id="taskAssignee" 
+            name="taskAssignee"
+            [(ngModel)]="newTask.assignee_id" 
+            class="form-select">
+            <option value="">Non assigné</option>
+            <option value="1">Jean Dupont</option>
+            <option value="2">Marie Martin</option>
+            <option value="3">Pierre Bernard</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label for="taskProject">Projet</label>
+          <select 
+            id="taskProject" 
+            name="taskProject"
+            [(ngModel)]="newTask.project_id" 
+            class="form-select">
+            <option value="">Non assigné</option>
+            <option value="1">Formation Angular Avancé</option>
+            <option value="2">Migration Cloud Infrastructure</option>
+            <option value="3">E-learning Platform V2</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="taskDueDate">Date d'échéance</label>
+          <input 
+            type="date" 
+            id="taskDueDate" 
+            name="taskDueDate"
+            [(ngModel)]="newTask.due_date" 
+            class="form-input">
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="taskEstimatedHours">Heures estimées</label>
+        <input 
+          type="number" 
+          id="taskEstimatedHours" 
+          name="taskEstimatedHours"
+          [(ngModel)]="newTask.estimated_hours" 
+          placeholder="0"
+          min="0"
+          step="0.5"
+          class="form-input">
+      </div>
+
+      <div class="form-actions">
+        <button type="button" class="btn-secondary" (click)="closeCreateTaskModal()">
+          Annuler
+        </button>
+        <button type="submit" class="btn-primary" [disabled]="loading">
+          <span *ngIf="!loading">Créer la tâche</span>
+          <span *ngIf="loading">Création...</span>
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Modal d'édition de tâche -->
+<div *ngIf="showEditTaskModal" class="modal-overlay" (click)="closeEditTaskModal()">
+  <div class="modal-content" (click)="$event.stopPropagation()">
+    <div class="modal-header">
+      <h2 class="modal-title">Modifier la Tâche</h2>
+      <button class="modal-close" (click)="closeEditTaskModal()">
+        <i class="bi bi-x-lg"></i>
+      </button>
+    </div>
+    
+    <form class="modal-body" (ngSubmit)="submitTaskEdit()">
+      <div class="form-group">
+        <label for="editTaskTitle">Titre de la tâche *</label>
+        <input 
+          type="text" 
+          id="editTaskTitle" 
+          name="editTaskTitle"
+          [(ngModel)]="taskToEdit.title" 
+          required
+          placeholder="Entrez le titre de la tâche"
+          class="form-input">
+      </div>
+
+      <div class="form-group">
+        <label for="editTaskDescription">Description</label>
+        <textarea 
+          id="editTaskDescription" 
+          name="editTaskDescription"
+          [(ngModel)]="taskToEdit.description" 
+          rows="4"
+          placeholder="Décrivez la tâche..."
+          class="form-textarea"></textarea>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label for="editTaskPriority">Priorité</label>
+          <select 
+            id="editTaskPriority" 
+            name="editTaskPriority"
+            [(ngModel)]="taskToEdit.priority" 
+            class="form-select">
+            <option value="low">Basse</option>
+            <option value="medium">Moyenne</option>
+            <option value="high">Haute</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="editTaskAssignee">Assigné à</label>
+          <select 
+            id="editTaskAssignee" 
+            name="editTaskAssignee"
+            [(ngModel)]="taskToEdit.assignee_id" 
+            class="form-select">
+            <option value="">Non assigné</option>
+            <option value="1">Jean Dupont</option>
+            <option value="2">Marie Martin</option>
+            <option value="3">Pierre Bernard</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label for="editTaskProject">Projet</label>
+          <select 
+            id="editTaskProject" 
+            name="editTaskProject"
+            [(ngModel)]="taskToEdit.project_id" 
+            class="form-select">
+            <option value="">Non assigné</option>
+            <option value="1">Formation Angular Avancé</option>
+            <option value="2">Migration Cloud Infrastructure</option>
+            <option value="3">E-learning Platform V2</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="editTaskDueDate">Date d'échéance</label>
+          <input 
+            type="date" 
+            id="editTaskDueDate" 
+            name="editTaskDueDate"
+            [(ngModel)]="taskToEdit.due_date" 
+            class="form-input">
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="editTaskEstimatedHours">Heures estimées</label>
+        <input 
+          type="number" 
+          id="editTaskEstimatedHours" 
+          name="editTaskEstimatedHours"
+          [(ngModel)]="taskToEdit.estimated_hours" 
+          placeholder="0"
+          min="0"
+          step="0.5"
+          class="form-input">
+      </div>
+
+      <div class="form-actions">
+        <button type="button" class="btn-secondary" (click)="closeEditTaskModal()">
+          Annuler
+        </button>
+        <button type="submit" class="btn-primary" [disabled]="loading">
+          <span *ngIf="!loading">Mettre à jour</span>
+          <span *ngIf="loading">Mise à jour...</span>
+        </button>
+      </div>
+    </form>
+  </div>
+</div>

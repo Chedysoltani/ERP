@@ -4,7 +4,7 @@ import { ManagerAuthService, Manager, Project } from '../../services/manager-aut
 
 export type SectionId =
   | 'dashboard' | 'projets' | 'taches' | 'gantt'
-  | 'utilisateurs' | 'timesheet' | 'reunions' | 'documents';
+  | 'utilisateurs' | 'reunions' | 'documents';
 
 interface DisplayProject {
   id: number;
@@ -18,14 +18,6 @@ interface DisplayProject {
   endDate?: string;
   budget?: number;
   priority?: string;
-}
-
-interface TimesheetEntry {
-  date: string;
-  project: string;
-  task: string;
-  duration: number;
-  status: string;
 }
 
 interface CalendarDay {
@@ -243,6 +235,16 @@ export class ManagerDashboardComponent implements OnInit {
         console.log('Fallback: utilisation des données locales');
       }
     });
+  }
+
+  getProjectStatusLabel(status: string): string {
+    const labels = {
+      'active': 'Actif',
+      'completed': 'Terminé',
+      'paused': 'En pause',
+      'cancelled': 'Annulé'
+    };
+    return labels[status as keyof typeof labels] || status;
   }
 
   loadTasksByStatus(status: string) {
@@ -697,7 +699,6 @@ export class ManagerDashboardComponent implements OnInit {
     { id: 'taches',       label: 'Tâches',       icon: 'bi-check2-square',  group: 'principal', badge: '12' },
     { id: 'gantt',        label: 'Gantt',        icon: 'bi-calendar3-range',group: 'principal', badge: null },
     { id: 'utilisateurs', label: 'Utilisateurs', icon: 'bi-people',         group: 'equipe',    badge: null },
-    { id: 'timesheet',    label: 'Timesheet',    icon: 'bi-clock-history',  group: 'equipe',    badge: null },
     { id: 'reunions',     label: 'Réunions',     icon: 'bi-camera-video',   group: 'equipe',    badge: '3'  },
     { id: 'documents',  label: 'Documents',  icon: 'bi-folder2-open',   group: 'ressources',badge: null },
   ];
@@ -708,7 +709,6 @@ export class ManagerDashboardComponent implements OnInit {
     taches:       { title: 'Tâches',         sub: 'Kanban — To Do / In Progress / Done' },
     gantt:        { title: 'Gantt',          sub: 'Planification des projets' },
     utilisateurs: { title: 'Utilisateurs',   sub: 'Gestion des rôles & permissions' },
-    timesheet:    { title: 'Timesheet',      sub: 'Suivi du temps de travail' },
     reunions:     { title: 'Réunions',       sub: 'Planification & notes' },
     documents:  { title: 'Documents',      sub: 'Gestion des fichiers' },
   };
@@ -722,6 +722,11 @@ export class ManagerDashboardComponent implements OnInit {
 
   @HostListener('window:scroll', [])
   onScroll() { this.isScrolled = window.scrollY > 40; }
+
+  // Helper method for event propagation
+  stopPropagation(event: Event) {
+    event.stopPropagation();
+  }
 
   // Méthodes pour le dashboard
   getStatusColor(status: string): string {
@@ -1241,7 +1246,6 @@ export class ManagerDashboardComponent implements OnInit {
   upcomingMeetings: any[] = [];
   weekDays = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
   calendarDays: CalendarDay[] = [];
-  timesheetEntries: TimesheetEntry[] = [];
   
   // Propriétés manquantes
   pendingTasks = this.tasks;
@@ -1277,4 +1281,238 @@ export class ManagerDashboardComponent implements OnInit {
       isToday: i + 1 === new Date().getDate(),
       hasMeeting: false,
       meetings: []
-    })
+    }));
+    
+    this.todoTasks = this.baseTasks;
+    this.inProgressTasks = this.inProgressTasks;
+    this.doneTasks = this.doneTasks;
+  }
+
+  // Méthodes pour la création de projet
+  openCreateProjectModal() {
+    this.showCreateProjectModal = true;
+  }
+
+  closeCreateProjectModal() {
+    this.showCreateProjectModal = false;
+    this.resetProjectForm();
+  }
+
+  resetProjectForm() {
+    this.newProject = {
+      name: '',
+      description: '',
+      team: '',
+      priority: 'medium',
+      startDate: '',
+      endDate: '',
+      budget: 0
+    };
+  }
+
+  testClick() {
+    alert('Test click fonctionne !');
+  }
+
+  createProject() {
+    alert('Bouton cliqué !');
+    console.log('createProject appelé');
+    console.log('newProject:', this.newProject);
+    console.log('loading:', this.loading);
+    
+    if (!this.newProject.name || !this.newProject.team) {
+      alert('Champs obligatoires manquants: name=' + this.newProject.name + ', team=' + this.newProject.team);
+      return;
+    }
+
+    alert('Validation OK, tentative de création...');
+    this.loading = true;
+
+    // Appeler le backend pour créer le projet
+    this.managerAuthService.createProject({
+      name: this.newProject.name,
+      description: this.newProject.description,
+      team: this.newProject.team,
+      priority: this.newProject.priority,
+      startDate: this.newProject.startDate,
+      endDate: this.newProject.endDate,
+      budget: this.newProject.budget
+    }).subscribe({
+      next: (createdProject: any) => {
+        console.log('Projet créé dans la base:', createdProject);
+        
+        // Ajouter le projet à la liste locale (pour l'affichage immédiat)
+        const displayProject = {
+          id: createdProject.data.id ? createdProject.data.id : this.recentProjects.length + 1,
+          name: createdProject.data.name,
+          description: createdProject.data.description || '',
+          progress: createdProject.data.progress || 0,
+          team: this.getTeamSize(createdProject.data.team),
+          priority: createdProject.data.priority,
+          startDate: createdProject.data.startDate || null,
+          endDate: createdProject.data.endDate || null,
+          budget: createdProject.data.budget,
+          deadline: createdProject.data.deadline || null,
+          status: createdProject.data.status
+        };
+        this.recentProjects.unshift(displayProject);
+
+        // Mettre à jour les statistiques
+        this.globalStats.activeProjects++;
+
+        // Fermer le modal et réinitialiser le formulaire
+        this.closeCreateProjectModal();
+        this.loading = false;
+        
+        alert('Projet créé avec succès dans la base de données !');
+      },
+      error: (error: any) => {
+        console.error('Erreur lors de la création du projet:', error);
+        this.loading = false;
+        
+        // En cas d'erreur backend, fallback sur la création locale
+        console.log('Fallback: création locale du projet');
+        this.createProjectLocally();
+      }
+    });
+  }
+
+  // Méthode de fallback pour création locale
+  createProjectLocally() {
+    const newProject = {
+      id: this.recentProjects.length + 1,
+      name: this.newProject.name,
+      description: this.newProject.description,
+      progress: 0,
+      team: this.getTeamSize(this.newProject.team),
+      priority: this.newProject.priority,
+      startDate: this.newProject.startDate,
+      endDate: this.newProject.endDate,
+      budget: this.newProject.budget,
+      deadline: this.newProject.endDate || 'À définir',
+      status: 'active'
+    };
+
+    this.recentProjects.unshift(newProject);
+    this.globalStats.activeProjects++;
+    this.closeCreateProjectModal();
+    
+    console.log('Projet créé localement:', newProject);
+  }
+
+  // Déconnexion
+  logout() {
+    this.managerAuthService.logout();
+    this.router.navigate(['/manager-login']);
+  }
+
+  // Actions sur les projets
+  viewProject(project: any) {
+    console.log('Voir le projet:', project);
+    this.selectedProject = project;
+    this.showViewProjectModal = true;
+  }
+
+  editProject(project: any) {
+    console.log('Modifier le projet:', project);
+    this.selectedProject = project;
+    this.projectToEdit = {
+      name: project.name,
+      description: project.description,
+      team: project.team,
+      priority: project.priority,
+      startDate: project.startDate,
+      endDate: project.endDate,
+      budget: project.budget
+    };
+    this.showEditProjectModal = true;
+  }
+
+  updateProject() {
+    console.log('Mise à jour du projet:', this.projectToEdit);
+    
+    if (!this.projectToEdit.name || !this.projectToEdit.team) {
+      alert('Veuillez remplir les champs obligatoires');
+      return;
+    }
+
+    this.loading = true;
+
+    // Convertir undefined en null pour MySQL
+    const projectData = {
+      name: this.projectToEdit.name,
+      description: this.projectToEdit.description || null,
+      team: this.projectToEdit.team,
+      priority: this.projectToEdit.priority || 'medium',
+      startDate: this.projectToEdit.startDate || null,
+      endDate: this.projectToEdit.endDate || null,
+      budget: this.projectToEdit.budget || null,
+      deadline: this.projectToEdit.endDate || null,
+      status: 'active',
+      progress: 0
+    };
+
+    // Appeler le backend pour mettre à jour le projet
+    this.managerAuthService.updateProject(this.selectedProject.id, projectData).subscribe({
+      next: (updatedProject: any) => {
+        console.log('Projet mis à jour dans la base:', updatedProject);
+        
+        // Mettre à jour le projet dans la liste locale
+        const index = this.recentProjects.findIndex(p => p.id === this.selectedProject.id);
+        if (index !== -1) {
+          this.recentProjects[index] = {
+            id: updatedProject.id,
+            name: updatedProject.name,
+            description: updatedProject.description || '',
+            progress: updatedProject.progress,
+            team: this.getTeamSize(updatedProject.team),
+            deadline: updatedProject.deadline,
+            status: updatedProject.status,
+            startDate: updatedProject.startDate,
+            endDate: updatedProject.endDate,
+            budget: updatedProject.budget,
+            priority: updatedProject.priority
+          };
+        }
+        
+        this.loading = false;
+        this.closeEditProjectModal();
+        
+        alert('Projet mis à jour avec succès !');
+      },
+      error: (error: any) => {
+        console.error('Erreur lors de la mise à jour du projet:', error);
+        this.loading = false;
+        alert('Erreur lors de la mise à jour du projet');
+      }
+    });
+  }
+
+  deleteProject(project: any) {
+    if (confirm(`Êtes-vous sûr de vouloir supprimer le projet "${project.name}" ?`)) {
+      console.log('Supprimer le projet:', project);
+      // TODO: Implémenter la suppression
+      alert(`Suppression du projet: ${project.name}\n\nFonctionnalité à implémenter`);
+    }
+  }
+
+  // Méthodes pour les modaux
+  closeViewProjectModal() {
+    this.showViewProjectModal = false;
+    this.selectedProject = null;
+  }
+
+  closeEditProjectModal() {
+    this.showEditProjectModal = false;
+    this.selectedProject = null;
+    this.projectToEdit = {
+      name: '',
+      description: '',
+      team: '',
+      priority: 'medium',
+      startDate: '',
+      endDate: '',
+      budget: 0
+    };
+  }
+}

@@ -5,7 +5,7 @@ const saltRounds = 10;
 class User {
   static async getAll() {
     try {
-      const query = 'SELECT id, nom, prenom, email, telephone, date_creation, actif FROM users WHERE actif = 1 ORDER BY date_creation DESC';
+      const query = 'SELECT id, nom, prenom, email, telephone, role, date_creation, actif FROM users WHERE actif = 1 ORDER BY date_creation DESC';
       return await db.query(query);
     } catch (error) {
       throw new Error('Erreur lors de la récupération des utilisateurs: ' + error.message);
@@ -14,7 +14,7 @@ class User {
 
   static async getById(id) {
     try {
-      const query = 'SELECT id, nom, prenom, email, telephone, date_creation, actif FROM users WHERE id = ? AND actif = 1';
+      const query = 'SELECT id, nom, prenom, email, telephone, role, date_creation, actif FROM users WHERE id = ? AND actif = 1';
       const users = await db.query(query, [id]);
       return users[0] || null;
     } catch (error) {
@@ -24,7 +24,7 @@ class User {
 
   static async create(userData) {
     try {
-      const { nom, prenom, email, password, telephone } = userData;
+      const { nom, prenom, email, password, telephone, role } = userData;
       
       // Vérifier si l'email existe déjà
       const existingUser = await this.getByEmail(email);
@@ -35,8 +35,8 @@ class User {
       // Hasher le mot de passe
       const hashedPassword = await bcrypt.hash(password, saltRounds);
       
-      const query = 'INSERT INTO users (nom, prenom, email, password, telephone) VALUES (?, ?, ?, ?, ?)';
-      const result = await db.query(query, [nom, prenom, email, hashedPassword, telephone]);
+      const query = 'INSERT INTO users (nom, prenom, email, password, telephone, role) VALUES (?, ?, ?, ?, ?, ?)';
+      const result = await db.query(query, [nom, prenom, email, hashedPassword, telephone, role || 'employee']);
       return result.insertId;
     } catch (error) {
       throw new Error('Erreur lors de la création de l\'utilisateur: ' + error.message);
@@ -45,9 +45,16 @@ class User {
 
   static async update(id, userData) {
     try {
-      const { nom, prenom, email, telephone } = userData;
-      const query = 'UPDATE users SET nom = ?, prenom = ?, email = ?, telephone = ? WHERE id = ?';
-      const result = await db.query(query, [nom, prenom, email, telephone, id]);
+      const { nom, prenom, email, telephone, role } = userData;
+      
+      // Vérifier si l'email existe déjà pour un autre utilisateur
+      const existingUser = await this.getByEmail(email);
+      if (existingUser && existingUser.id !== id) {
+        throw new Error('Cet email est déjà utilisé');
+      }
+      
+      const query = 'UPDATE users SET nom = ?, prenom = ?, email = ?, telephone = ?, role = ? WHERE id = ?';
+      const result = await db.query(query, [nom, prenom, email, telephone, role, id]);
       return result.affectedRows > 0;
     } catch (error) {
       throw new Error('Erreur lors de la mise à jour de l\'utilisateur: ' + error.message);

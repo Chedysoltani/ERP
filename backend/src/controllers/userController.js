@@ -49,10 +49,10 @@ class UserController {
       const userData = req.body;
       
       // Validation basique
-      if (!userData.nom || !userData.prenom || !userData.email || !userData.password) {
+      if (!userData.nom || !userData.prenom || !userData.email || !userData.password || !userData.role) {
         return res.status(400).json({
           success: false,
-          message: 'Les champs nom, prénom, email et password sont obligatoires'
+          message: 'Les champs nom, prénom, email, password et role sont obligatoires'
         });
       }
 
@@ -65,6 +65,15 @@ class UserController {
       });
     } catch (error) {
       console.error('Erreur createUser:', error);
+      
+      // Gérer les erreurs spécifiques
+      if (error.message.includes('déjà utilisé')) {
+        return res.status(409).json({
+          success: false,
+          message: error.message
+        });
+      }
+      
       res.status(500).json({
         success: false,
         message: error.message
@@ -78,10 +87,10 @@ class UserController {
       const userData = req.body;
       
       // Validation basique
-      if (!userData.nom || !userData.prenom || !userData.email) {
+      if (!userData.nom || !userData.prenom || !userData.email || !userData.role) {
         return res.status(400).json({
           success: false,
-          message: 'Les champs nom, prénom et email sont obligatoires'
+          message: 'Les champs nom, prénom, email et role sont obligatoires'
         });
       }
 
@@ -100,6 +109,15 @@ class UserController {
       });
     } catch (error) {
       console.error('Erreur updateUser:', error);
+      
+      // Gérer les erreurs spécifiques
+      if (error.message.includes('déjà utilisé')) {
+        return res.status(409).json({
+          success: false,
+          message: error.message
+        });
+      }
+      
       res.status(500).json({
         success: false,
         message: error.message
@@ -110,12 +128,22 @@ class UserController {
   static async deleteUser(req, res) {
     try {
       const { id } = req.params;
-      const deleted = await User.delete(id);
       
-      if (!deleted) {
+      // Vérifier si l'utilisateur existe
+      const user = await User.getById(id);
+      if (!user) {
         return res.status(404).json({
           success: false,
           message: 'Utilisateur non trouvé'
+        });
+      }
+
+      const deleted = await User.delete(id);
+      
+      if (!deleted) {
+        return res.status(500).json({
+          success: false,
+          message: 'Erreur lors de la suppression de l\'utilisateur'
         });
       }
 
