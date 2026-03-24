@@ -1,0 +1,213 @@
+<div class="container">
+  <div class="header">
+    <h1>Gestion des Utilisateurs</h1>
+    <button class="btn-primary" (click)="openCreateModal()">
+      <i class="bi bi-plus-circle"></i>
+      Ajouter un utilisateur
+    </button>
+  </div>
+
+  <div class="content">
+    <div class="table-container">
+      <table class="users-table">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Nom</th>
+            <th>Prénom</th>
+            <th>Email</th>
+            <th>Téléphone</th>
+            <th>Date de création</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let user of users; let i = index">
+            <td>{{ user.id }}</td>
+            <td>{{ user.nom }}</td>
+            <td>{{ user.prenom }}</td>
+            <td>{{ user.email }}</td>
+            <td>{{ user.telephone || '-' }}</td>
+            <td>{{ user.date_creation | date:'dd/MM/yyyy' }}</td>
+            <td class="actions">
+              <button class="btn-edit" (click)="editUser(user)" title="Modifier">
+                <i class="bi bi-pencil"></i>
+              </button>
+              <button class="btn-delete" (click)="deleteUser(user.id, user.nom + ' ' + user.prenom)" title="Supprimer">
+                <i class="bi bi-trash"></i>
+              </button>
+            </td>
+          </tr>
+          <tr *ngIf="users.length === 0">
+            <td colspan="6" class="no-data">
+              Aucun utilisateur trouvé
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Loading -->
+  <div *ngIf="loading" class="loading-overlay">
+    <div class="spinner"></div>
+  </div>
+</div>
+
+<!-- Modal de création d'utilisateur -->
+<div *ngIf="showCreateModal" class="modal-overlay" (click)="closeCreateModal()">
+  <div class="modal-content" (click)="$event.stopPropagation()">
+    <div class="modal-header">
+      <h2 class="modal-title">Ajouter un Utilisateur</h2>
+      <button class="modal-close" (click)="closeCreateModal()">
+        <i class="bi bi-x-lg"></i>
+      </button>
+    </div>
+    
+    <form class="modal-body" (ngSubmit)="createUser()">
+      <div class="form-row">
+        <div class="form-group">
+          <label for="createNom">Nom *</label>
+          <input 
+            type="text" 
+            id="createNom" 
+            name="createNom"
+            [(ngModel)]="newUser.nom" 
+            required
+            placeholder="Entrez le nom"
+            class="form-input">
+        </div>
+
+        <div class="form-group">
+          <label for="createPrenom">Prénom *</label>
+          <input 
+            type="text" 
+            id="createPrenom" 
+            name="createPrenom"
+            [(ngModel)]="newUser.prenom" 
+            required
+            placeholder="Entrez le prénom"
+            class="form-input">
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="createEmail">Email *</label>
+        <input 
+          type="email" 
+          id="createEmail" 
+          name="createEmail"
+          [(ngModel)]="newUser.email" 
+          required
+          placeholder="Entrez l'email"
+          class="form-input">
+      </div>
+
+      <div class="form-group">
+        <label for="createTelephone">Téléphone</label>
+        <input 
+          type="tel" 
+          id="createTelephone" 
+          name="createTelephone"
+          [(ngModel)]="newUser.telephone" 
+          placeholder="Entrez le numéro de téléphone"
+          class="form-input">
+      </div>
+
+      <div class="form-group">
+        <label for="createPassword">Mot de passe *</label>
+        <input 
+          type="password" 
+          id="createPassword" 
+          name="createPassword"
+          [(ngModel)]="newUser.password" 
+          required
+          placeholder="Entrez le mot de passe"
+          class="form-input">
+      </div>
+
+      <div class="form-actions">
+        <button type="button" class="btn-secondary" (click)="closeCreateModal()">
+          Annuler
+        </button>
+        <button type="submit" class="btn-primary" [disabled]="loading">
+          <span *ngIf="!loading">Créer</span>
+          <span *ngIf="loading">Création...</span>
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Modal d'édition d'utilisateur -->
+<div *ngIf="showEditModal && userToEdit" class="modal-overlay" (click)="closeEditModal()">
+  <div class="modal-content" (click)="$event.stopPropagation()">
+    <div class="modal-header">
+      <h2 class="modal-title">Modifier l'Utilisateur</h2>
+      <button class="modal-close" (click)="closeEditModal()">
+        <i class="bi bi-x-lg"></i>
+      </button>
+    </div>
+    
+    <form class="modal-body" (ngSubmit)="updateUser()">
+      <div class="form-row">
+        <div class="form-group">
+          <label for="editNom">Nom *</label>
+          <input 
+            type="text" 
+            id="editNom" 
+            name="editNom"
+            [(ngModel)]="userToEdit.nom" 
+            required
+            placeholder="Entrez le nom"
+            class="form-input">
+        </div>
+
+        <div class="form-group">
+          <label for="editPrenom">Prénom *</label>
+          <input 
+            type="text" 
+            id="editPrenom" 
+            name="editPrenom"
+            [(ngModel)]="userToEdit.prenom" 
+            required
+            placeholder="Entrez le prénom"
+            class="form-input">
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="editEmail">Email *</label>
+        <input 
+          type="email" 
+          id="editEmail" 
+          name="editEmail"
+          [(ngModel)]="userToEdit.email" 
+          required
+          placeholder="Entrez l'email"
+          class="form-input">
+      </div>
+
+      <div class="form-group">
+        <label for="editTelephone">Téléphone</label>
+        <input 
+          type="tel" 
+          id="editTelephone" 
+          name="editTelephone"
+          [(ngModel)]="userToEdit.telephone" 
+          placeholder="Entrez le numéro de téléphone"
+          class="form-input">
+      </div>
+
+      <div class="form-actions">
+        <button type="button" class="btn-secondary" (click)="closeEditModal()">
+          Annuler
+        </button>
+        <button type="submit" class="btn-primary" [disabled]="loading">
+          <span *ngIf="!loading">Mettre à jour</span>
+          <span *ngIf="loading">Mise à jour...</span>
+        </button>
+      </div>
+    </form>
+  </div>
+</div>

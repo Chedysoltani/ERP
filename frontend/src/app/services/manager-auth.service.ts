@@ -1,0 +1,349 @@
+import { Injectable } from '@angular/core';
+import { HttpClient } from '@angular/common/http';
+import { Observable, BehaviorSubject, of, throwError } from 'rxjs';
+import { map, tap, delay, catchError } from 'rxjs/operators';
+import { environment } from '../../environments/environment';
+
+export interface Manager {
+  id: number;
+  nom: string;
+  prenom: string;
+  email: string;
+  role: string;
+  telephone?: string;
+  date_creation?: string;
+  token?: string;
+}
+
+export interface Project {
+  id?: number;
+  name: string;
+  description: string;
+  team: string;
+  priority: string;
+  startDate: string;
+  endDate: string;
+  budget: number;
+  progress: number;
+  status: string;
+  manager_id: number;
+  deadline?: string;
+}
+
+@Injectable({
+  providedIn: 'root'
+})
+export class ManagerAuthService {
+  private currentManagerSubject: BehaviorSubject<Manager | null>;
+  public currentManager: Observable<Manager | null>;
+
+  constructor(private http: HttpClient) {
+    this.currentManagerSubject = new BehaviorSubject<Manager | null>(
+      JSON.parse(localStorage.getItem('currentManager') || 'null')
+    );
+    this.currentManager = this.currentManagerSubject.asObservable();
+  }
+
+  public get currentManagerValue(): Manager | null {
+    return this.currentManagerSubject.value;
+  }
+
+  public get isLoggedIn(): boolean {
+    return !!this.currentManagerValue;
+  }
+
+  login(email: string, password: string): Observable<Manager> {
+    // Simulation temporaire pour tester la redirection
+    if (email && password) {
+      const mockManager: Manager = {
+        id: 1,
+        nom: 'Manager',
+        prenom: 'Test',
+        email: email,
+        role: 'manager',
+        telephone: '0123456789',
+        date_creation: new Date().toISOString(),
+        token: 'mock-token-' + Date.now()
+      };
+      
+      localStorage.setItem('currentManager', JSON.stringify(mockManager));
+      this.currentManagerSubject.next(mockManager);
+      
+      // Forcer la mise à jour de l'état
+      console.log('Manager stored in localStorage:', mockManager);
+      console.log('Is logged in after login:', this.isLoggedIn);
+      
+      return of(mockManager).pipe(delay(500));
+    }
+
+    // Code original pour le backend
+    return this.http.post<any>(`${environment.apiUrl}/users/login`, { email, password })
+      .pipe(
+        map(response => {
+          // Vérifier si l'utilisateur est un manager
+          if (response.user && response.user.role === 'manager') {
+            // Stocker le manager et le token
+            const manager: Manager = {
+              ...response.user,
+              token: response.token
+            };
+            localStorage.setItem('currentManager', JSON.stringify(manager));
+            this.currentManagerSubject.next(manager);
+            return manager;
+          } else {
+            throw new Error('Accès réservé aux managers');
+          }
+        })
+      );
+  }
+
+  logout(): void {
+    localStorage.removeItem('currentManager');
+    this.currentManagerSubject.next(null);
+  }
+
+  register(managerData: {
+    nom: string;
+    prenom: string;
+    email: string;
+    password: string;
+    telephone?: string;
+  }): Observable<any> {
+    const dataWithRole = {
+      ...managerData,
+      role: 'manager'
+    };
+    
+    return this.http.post(`${environment.apiUrl}/users/register`, dataWithRole);
+  }
+
+  refreshToken(): Observable<any> {
+    const currentManager = this.currentManagerValue;
+    if (!currentManager || !currentManager.token) {
+      return new Observable();
+    }
+
+    return this.http.post<any>(`${environment.apiUrl}/users/refresh-token`, {
+      token: currentManager.token
+    }).pipe(
+      tap(response => {
+        if (response.token) {
+          const updatedManager = { ...currentManager, token: response.token };
+          localStorage.setItem('currentManager', JSON.stringify(updatedManager));
+          this.currentManagerSubject.next(updatedManager);
+        }
+      })
+    );
+  }
+
+  // Créer un projet dans la base de données
+  createProject(projectData: Omit<Project, 'id' | 'manager_id' | 'progress' | 'status'>): Observable<Project> {
+    const currentManager = this.currentManagerValue;
+    if (!currentManager) {
+      console.error('Aucun manager connecté');
+      throw new Error('Aucun manager connecté');
+    }
+
+    console.log('Tentative de création de projet avec les données:', projectData);
+    console.log('Manager connecté:', currentManager);
+
+    const projectWithManager: Project = {
+      ...projectData,
+      manager_id: currentManager.id,
+      progress: 0,
+      status: 'active',
+      deadline: projectData.endDate || 'À définir'
+    };
+
+    console.log('Données envoyées au backend:', projectWithManager);
+
+    // Appel au backend pour créer le projet
+    return this.http.post<Project>(`${environment.apiUrl}/projects`, projectWithManager, {
+      headers: {
+        'Authorization': `Bearer ${currentManager.token}`
+      }
+    }).pipe(
+      tap(response => {
+        console.log('Réponse du backend:', response);
+      }),
+      catchError((error: any) => {
+        console.error('Erreur HTTP:', error);
+        console.error('Status:', error.status);
+        console.error('Error body:', error.error);
+        return throwError(error);
+      })
+    );
+  }
+
+  // Obtenir les projets du manager connecté
+  getManagerProjects(): Observable<Project[]> {
+    const currentManager = this.currentManagerValue;
+    if (!currentManager) {
+      throw new Error('Aucun manager connecté');
+    }
+
+    return this.http.get<Project[]>(`${environment.apiUrl}/projects/manager/${currentManager.id}`, {
+      headers: {
+        'Authorization': `Bearer ${currentManager.token}`
+      }
+    });
+  }
+
+  updateProject(projectId: number, projectData: any): Observable<any> {
+    const currentManager = this.currentManagerValue;
+    if (!currentManager) {
+      throw new Error('Aucun manager connecté');
+    }
+    return this.http.put<any>(`${environment.apiUrl}/projects/${projectId}`, projectData, {
+      headers: {
+        'Authorization': `Bearer ${currentManager.token}`
+      }
+    });
+  }
+
+  deleteProject(projectId: number): Observable<any> {
+    const currentManager = this.currentManagerValue;
+    if (!currentManager) {
+      throw new Error('Aucun manager connecté');
+    }
+    return this.http.delete<any>(`${environment.apiUrl}/projects/${projectId}`, {
+      headers: {
+        'Authorization': `Bearer ${currentManager.token}`
+      }
+    });
+  }
+
+  // Méthodes pour la gestion des utilisateurs
+  getAllUsers(): Observable<any> {
+    const currentManager = this.currentManagerValue;
+    if (!currentManager) {
+      throw new Error('Aucun manager connecté');
+    }
+    return this.http.get<any>(`${environment.apiUrl}/users`, {
+      headers: {
+        'Authorization': `Bearer ${currentManager.token}`
+      }
+    });
+  }
+
+  createUser(userData: any): Observable<any> {
+    const currentManager = this.currentManagerValue;
+    if (!currentManager) {
+      throw new Error('Aucun manager connecté');
+    }
+    return this.http.post<any>(`${environment.apiUrl}/users`, userData, {
+      headers: {
+        'Authorization': `Bearer ${currentManager.token}`
+      }
+    });
+  }
+
+  updateUser(userId: number, userData: any): Observable<any> {
+    const currentManager = this.currentManagerValue;
+    if (!currentManager) {
+      throw new Error('Aucun manager connecté');
+    }
+    return this.http.put<any>(`${environment.apiUrl}/users/${userId}`, userData, {
+      headers: {
+        'Authorization': `Bearer ${currentManager.token}`
+      }
+    });
+  }
+
+  deleteUser(userId: number): Observable<any> {
+    const currentManager = this.currentManagerValue;
+    if (!currentManager) {
+      throw new Error('Aucun manager connecté');
+    }
+    return this.http.delete<any>(`${environment.apiUrl}/users/${userId}`, {
+      headers: {
+        'Authorization': `Bearer ${currentManager.token}`
+      }
+    });
+  }
+
+  // Méthodes pour la gestion des tâches
+  createTask(taskData: any): Observable<any> {
+    const currentManager = this.currentManagerValue;
+    if (!currentManager) {
+      throw new Error('Aucun manager connecté');
+    }
+    return this.http.post<any>(`${environment.apiUrl}/tasks`, taskData, {
+      headers: {
+        'Authorization': `Bearer ${currentManager.token}`
+      }
+    });
+  }
+
+  updateTask(taskId: number, taskData: any): Observable<any> {
+    const currentManager = this.currentManagerValue;
+    if (!currentManager) {
+      throw new Error('Aucun manager connecté');
+    }
+    return this.http.put<any>(`${environment.apiUrl}/tasks/${taskId}`, taskData, {
+      headers: {
+        'Authorization': `Bearer ${currentManager.token}`
+      }
+    });
+  }
+
+  updateTaskStatus(taskId: number, status: string): Observable<any> {
+    const currentManager = this.currentManagerValue;
+    if (!currentManager) {
+      throw new Error('Aucun manager connecté');
+    }
+    return this.http.put<any>(`${environment.apiUrl}/tasks/${taskId}/status`, { status }, {
+      headers: {
+        'Authorization': `Bearer ${currentManager.token}`
+      }
+    });
+  }
+
+  approveTask(taskId: number): Observable<any> {
+    const currentManager = this.currentManagerValue;
+    if (!currentManager) {
+      throw new Error('Aucun manager connecté');
+    }
+    return this.http.put<any>(`${environment.apiUrl}/tasks/${taskId}/approve`, {}, {
+      headers: {
+        'Authorization': `Bearer ${currentManager.token}`
+      }
+    });
+  }
+
+  rejectTask(taskId: number): Observable<any> {
+    const currentManager = this.currentManagerValue;
+    if (!currentManager) {
+      throw new Error('Aucun manager connecté');
+    }
+    return this.http.put<any>(`${environment.apiUrl}/tasks/${taskId}/reject`, { reason: '' }, {
+      headers: {
+        'Authorization': `Bearer ${currentManager.token}`
+      }
+    });
+  }
+
+  deleteTask(taskId: number): Observable<any> {
+    const currentManager = this.currentManagerValue;
+    if (!currentManager) {
+      throw new Error('Aucun manager connecté');
+    }
+    return this.http.delete<any>(`${environment.apiUrl}/tasks/${taskId}`, {
+      headers: {
+        'Authorization': `Bearer ${currentManager.token}`
+      }
+    });
+  }
+
+  getTasksByStatus(status: string): Observable<any> {
+    const currentManager = this.currentManagerValue;
+    if (!currentManager) {
+      throw new Error('Aucun manager connecté');
+    }
+    return this.http.get<any>(`${environment.apiUrl}/tasks/status/${status}?managerId=${currentManager.id}`, {
+      headers: {
+        'Authorization': `Bearer ${currentManager.token}`
+      }
+    });
+  }
+}

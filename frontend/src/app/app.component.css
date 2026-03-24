@@ -1,0 +1,30 @@
+/* Styles globaux pour l'application */
+.navbar-brand {
+  font-weight: bold;
+}
+
+.container {
+  max-width: 1200px;
+}
+
+footer {
+  position: relative;
+  bottom: 0;
+  width: 100%;
+}
+
+/* Animations de transition */
+.router-outlet {
+  animation: fadeIn 0.3s ease-in-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

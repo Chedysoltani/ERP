@@ -1,0 +1,213 @@
+<!-- Bootstrap Icons CDN requis dans index.html :
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+-->
+
+<!-- Navigation -->
+<nav class="navbar" [class.scrolled]="isScrolled">
+  <div class="nav-container">
+
+    <a class="nav-brand" href="#home">
+      <span class="brand-hex">⬡</span>
+      <span class="brand-name">SIT</span>
+      <!--<span class="brand-version">{{ company.version }}</span>-->
+    </a>
+
+    <ul class="nav-links">
+      <li><a (click)="scrollToSection('features')">Fonctionnalités</a></li>
+      <li><a (click)="scrollToSection('modules')">Modules</a></li>
+      <li><a (click)="scrollToSection('stats')">Chiffres</a></li>
+      <li><a (click)="scrollToSection('contact')">Contact</a></li>
+    </ul>
+
+    <a class="btn-nav-cta" href="/users">
+      Accès ERP &nbsp;→
+    </a>
+
+  </div>
+</nav>
+
+<!-- ===== HERO ===== -->
+<section id="home" class="hero">
+  <div class="hero-bg-grid"></div>
+  <div class="hero-orb hero-orb-1"></div>
+  <div class="hero-orb hero-orb-2"></div>
+  <div class="hero-orb hero-orb-3"></div>
+
+  <div class="hero-container">
+
+    <div class="hero-badge">
+      <span class="badge-dot"></span>
+      Plateforme ERP interne — SIT
+    </div>
+
+    <h1 class="hero-title">
+      Pilotez votre<br>
+      <span class="gradient-text">entreprise.</span><br>
+      En un seul endroit.
+    </h1>
+
+    <p class="hero-subtitle">{{ company.description }}</p>
+
+    <div class="hero-actions">
+      <button class="btn-primary-hero" (click)="scrollToSection('modules')">
+        Explorer les modules
+        <span class="btn-icon">↓</span>
+      </button>
+      <a class="btn-secondary-hero" href="/users">
+        Accès Employé &nbsp;→
+      </a>
+      <a class="btn-manager-hero" href="/manager-login">
+        <i class="bi bi-briefcase-fill"></i>
+        Accès Manager &nbsp;→
+      </a>
+    </div>
+
+    <!-- Floating module pills -->
+    <div class="hero-pills">
+      <span class="pill pill-1"><i class="bi bi-kanban-fill"></i> Projets</span>
+      <span class="pill pill-2"><i class="bi bi-clock-history"></i> Timesheet</span>
+      <span class="pill pill-3"><i class="bi bi-calendar3-range"></i> Gantt</span>
+      <span class="pill pill-4"><i class="bi bi-speedometer2"></i> Dashboard</span>
+      <span class="pill pill-5"><i class="bi bi-folder2-open"></i> Documents</span>
+    </div>
+
+  </div>
+
+  <div class="scroll-indicator">
+    <span>Découvrir</span>
+    <div class="scroll-line"></div>
+  </div>
+</section>
+
+<!-- ===== FEATURES ===== -->
+<section id="features" class="features-section">
+  <div class="section-container">
+    <div class="section-header">
+      <!--<p class="section-label">Pourquoi SIT ?</p>-->
+      <h2 class="section-title">Conçu pour<br>l'efficacité opérationnelle.</h2>
+    </div>
+
+    <div class="features-grid">
+      <div
+        class="feature-card"
+        *ngFor="let feature of features; let i = index"
+        [style.--delay]="(i * 0.1) + 's'">
+
+        <div class="feature-icon-wrap" [ngStyle]="{
+          background: feature.accent + '18',
+          border: '1px solid ' + feature.accent + '30',
+          color: feature.accent
+        }">
+          <i class="bi {{ feature.icon }}"></i>
+        </div>
+
+        <h3 class="feature-title">{{ feature.title }}</h3>
+        <p class="feature-desc">{{ feature.description }}</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== MODULES ===== -->
+<section id="modules" class="modules-section">
+  <div class="section-container">
+    <div class="section-header">
+      <p class="section-label">8 modules intégrés</p>
+      <h2 class="section-title">Une solution complète<br>pour votre équipe.</h2>
+    </div>
+
+    <div class="modules-grid">
+      <div
+        class="module-card"
+        *ngFor="let module of modules; let i = index"
+        [style.--delay]="(i * 0.07) + 's'">
+
+        <div class="module-top">
+          <div class="module-icon">
+            <i class="bi {{ module.icon }}"></i>
+          </div>
+          <span class="module-tag"
+            [ngStyle]="{
+              background: getTagColor(module.tag) + '22',
+              color: getTagColor(module.tag)
+            }">
+            {{ module.tag }}
+          </span>
+        </div>
+
+        <h3 class="module-name">{{ module.name }}</h3>
+        <p class="module-desc">{{ module.description }}</p>
+        <div class="module-arrow">→</div>
+
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== STATS ===== -->
+<section id="stats" class="stats-section">
+  <div class="stats-inner">
+    <div class="stat-item" *ngFor="let stat of stats">
+      <div class="stat-number">{{ stat.number }}<span class="stat-suffix">{{ stat.suffix }}</span></div>
+      <div class="stat-label">{{ stat.label }}</div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== CONTACT ===== -->
+<section id="contact" class="contact-section">
+  <div class="section-container">
+    <div class="contact-card">
+
+      <div class="contact-left">
+        <p class="section-label">Contactez-nous</p>
+        <h2 class="contact-title">Prêt à centraliser<br>votre activité ?</h2>
+        <p class="contact-sub">Notre équipe est disponible pour vous accompagner dans la prise en main de la plateforme SIT ERP.</p>
+        <a class="btn-primary-hero" href="/users">
+          Accéder à SIT ERP &nbsp;→
+        </a>
+      </div>
+
+      <div class="contact-right">
+        <div class="contact-item">
+          <div class="contact-icon"><i class="bi bi-telephone-fill"></i></div>
+          <div>
+            <span class="contact-label">Téléphone</span>
+            <span class="contact-value">+212 5XX XXX XXX</span>
+          </div>
+        </div>
+        <div class="contact-item">
+          <div class="contact-icon"><i class="bi bi-envelope-fill"></i></div>
+          <div>
+            <span class="contact-label">Email</span>
+            <span class="contact-value">contact&#64;sit.ma</span>
+          </div>
+        </div>
+        <div class="contact-item">
+          <div class="contact-icon"><i class="bi bi-geo-alt-fill"></i></div>
+          <div>
+            <span class="contact-label">Adresse</span>
+            <span class="contact-value">Maroc</span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ===== FOOTER ===== -->
+<footer class="footer">
+  <div class="footer-inner">
+    <a class="footer-brand" href="#home">
+      <span class="brand-hex">⬡</span>
+      <span class="brand-name">SIT</span>
+    </a>
+    <p class="footer-copy">© 2024 SIT. Tous droits réservés. — Plateforme ERP interne.</p>
+    <div class="footer-links">
+      <a (click)="scrollToSection('home')">Accueil</a>
+      <a (click)="scrollToSection('modules')">Modules</a>
+      <a href="/users">Accès ERP</a>
+    </div>
+  </div>
+</footer>

@@ -1,0 +1,67 @@
+<div class="auth-container">
+  <div class="auth-card">
+    <div class="auth-header">
+      <h2>Connexion</h2>
+      <p>Accédez à votre espace ERP</p>
+    </div>
+
+    <form class="auth-form" [formGroup]="authForm" (ngSubmit)="onLogin()">
+      <!-- Messages d'erreur et de succès -->
+      <div class="alert alert-error" *ngIf="errorMessage">
+        {{ errorMessage }}
+      </div>
+      <div class="alert alert-success" *ngIf="successMessage">
+        {{ successMessage }}
+      </div>
+
+      <!-- Affichage du rôle en mode connexion -->
+      <div class="role-display">
+        <div class="role-selector">
+          <label>Connexion en tant que:</label>
+          <div class="role-options">
+            <div 
+              class="role-option" 
+              *ngFor="let role of roles" 
+              [class.active]="selectedRole === role.value"
+              (click)="onRoleChange(role.value)">
+              <i class="bi" [ngClass]="getRoleIcon(role.value)"></i>
+              <span>{{ role.label }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="email">Email</label>
+        <input type="email" id="email" formControlName="email" placeholder="exemple@email.com" required>
+        <div class="error-message" *ngIf="authForm.get('email')?.touched && authForm.get('email')?.invalid">
+          <span *ngIf="authForm.get('email')?.errors?.['required']">L'email est requis</span>
+          <span *ngIf="authForm.get('email')?.errors?.['email']">Veuillez entrer un email valide</span>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="password">Mot de passe</label>
+        <input type="password" id="password" formControlName="password" placeholder="••••••••" required>
+        <div class="error-message" *ngIf="authForm.get('password')?.touched && authForm.get('password')?.invalid">
+          <span *ngIf="authForm.get('password')?.errors?.['required']">Le mot de passe est requis</span>
+        </div>
+      </div>
+
+      <div class="form-options">
+        <label class="checkbox">
+          <input type="checkbox">
+          <span class="checkmark"></span>
+          Se souvenir de moi
+        </label>
+        <a href="#" class="forgot-password">Mot de passe oublié?</a>
+      </div>
+
+      <button type="submit" class="auth-btn" [disabled]="isLoading">
+        <span *ngIf="!isLoading">Se connecter</span>
+        <span *ngIf="isLoading" class="loading-spinner">Chargement...</span>
+      </button>
+    </form>
+
+  </div>
+</div>
