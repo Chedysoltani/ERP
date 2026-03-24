@@ -30,6 +30,24 @@ export interface Project {
   deadline?: string;
 }
 
+export interface Meeting {
+  id?: number;
+  title: string;
+  description?: string;
+  date_time: string;
+  duration: string;
+  location: string;
+  type: 'team' | 'client' | 'technical' | 'review';
+  status: 'upcoming' | 'scheduled' | 'completed' | 'cancelled';
+  participants: number;
+  creator_id: number;
+  agenda?: string[];
+  notes?: string;
+  meeting_link?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
 @Injectable({
   providedIn: 'root'
 })
@@ -384,6 +402,75 @@ export class ManagerAuthService {
     if (endDate) params.append('endDate', endDate);
     
     return this.http.get<any>(`${environment.apiUrl}/timesheet/period/manager/${currentManager.id}?${params.toString()}`, {
+      headers: {
+        'Authorization': `Bearer ${currentManager.token}`
+      }
+    });
+  }
+
+  // Méthodes pour la gestion des réunions
+  createMeeting(meeting: Omit<Meeting, 'id' | 'creator_id' | 'created_at' | 'updated_at'>): Observable<any> {
+    const currentManager = this.currentManagerValue;
+    if (!currentManager) {
+      throw new Error('Aucun manager connecté');
+    }
+    
+    const meetingData = {
+      ...meeting,
+      creator_id: currentManager.id
+    };
+    
+    return this.http.post<any>(`${environment.apiUrl}/meetings`, meetingData, {
+      headers: {
+        'Authorization': `Bearer ${currentManager.token}`
+      }
+    });
+  }
+
+  getMeetings(): Observable<any> {
+    const currentManager = this.currentManagerValue;
+    if (!currentManager) {
+      throw new Error('Aucun manager connecté');
+    }
+    return this.http.get<any>(`${environment.apiUrl}/meetings/manager/${currentManager.id}`, {
+      headers: {
+        'Authorization': `Bearer ${currentManager.token}`
+      }
+    });
+  }
+
+  updateMeeting(meetingId: number, meeting: Partial<Meeting>): Observable<any> {
+    const currentManager = this.currentManagerValue;
+    if (!currentManager) {
+      throw new Error('Aucun manager connecté');
+    }
+    
+    return this.http.put<any>(`${environment.apiUrl}/meetings/${meetingId}`, meeting, {
+      headers: {
+        'Authorization': `Bearer ${currentManager.token}`
+      }
+    });
+  }
+
+  deleteMeeting(meetingId: number): Observable<any> {
+    const currentManager = this.currentManagerValue;
+    if (!currentManager) {
+      throw new Error('Aucun manager connecté');
+    }
+    
+    return this.http.delete<any>(`${environment.apiUrl}/meetings/${meetingId}`, {
+      headers: {
+        'Authorization': `Bearer ${currentManager.token}`
+      }
+    });
+  }
+
+  getUpcomingMeetings(): Observable<any> {
+    const currentManager = this.currentManagerValue;
+    if (!currentManager) {
+      throw new Error('Aucun manager connecté');
+    }
+    return this.http.get<any>(`${environment.apiUrl}/meetings/upcoming/manager/${currentManager.id}`, {
       headers: {
         'Authorization': `Bearer ${currentManager.token}`
       }

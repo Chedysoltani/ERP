@@ -112,11 +112,11 @@
             </div>
             <div class="stat-card">
               <div class="stat-icon orange">
-                <i class="bi bi-clock-history"></i>
+                <i class="bi bi-calendar-event"></i>
               </div>
               <div class="stat-content">
                 <h3 class="stat-number">{{ globalStats.pendingApprovals }}</h3>
-                <p class="stat-label">En Attente</p>
+                <p class="stat-label">Réunions à Venir</p>
               </div>
             </div>
           </div>
@@ -169,26 +169,53 @@
               <span class="pending-count">{{ pendingTasks.length }}</span>
             </div>
             <div class="tasks-list">
+              <!-- Message si aucune tâche en attente -->
+              <div class="no-tasks" *ngIf="pendingTasks.length === 0">
+                <i class="bi bi-check-circle"></i>
+                <h3>Aucune tâche en attente</h3>
+                <p>Toutes les tâches sont traitées</p>
+              </div>
+              
+              <!-- Liste des tâches en attente -->
               <div class="task-item" *ngFor="let task of pendingTasks">
+                <div class="task-checkbox">
+                  <input type="checkbox" id="task-{{ task.id }}" (change)="toggleTaskSelection(task.id)">
+                  <label for="task-{{ task.id }}"></label>
+                </div>
                 <div class="task-info">
                   <h4 class="task-title">{{ task.title }}</h4>
+                  <p class="task-description">{{ task.description }}</p>
                   <div class="task-meta">
-                    <span class="assignee">{{ task.assignee }}</span>
-                    <span class="submit-time">{{ task.submittedAt }}</span>
+                    <span class="assignee">
+                      <i class="bi bi-person"></i>
+                      {{ task.assignee }}
+                    </span>
+                    <span class="due-date">
+                      <i class="bi bi-calendar"></i>
+                      {{ task.dueDate }}
+                    </span>
+                    <span class="submit-time">
+                      <i class="bi bi-clock"></i>
+                      {{ task.submittedAt | date:'dd/MM/yyyy HH:mm' }}
+                    </span>
                   </div>
                 </div>
                 <div class="task-priority">
                   <span 
                     class="priority-badge" 
+                    [class]="'priority-' + task.priority"
                     [ngStyle]="{ 'background-color': getPriorityColor(task.priority) }">
                     {{ task.priority }}
                   </span>
                 </div>
                 <div class="task-actions">
-                  <button class="btn-approve" (click)="approveTask(task.id)">
+                  <button class="btn-action btn-view" title="Voir les détails" (click)="viewTaskDetails(task)">
+                    <i class="bi bi-eye"></i>
+                  </button>
+                  <button class="btn-action btn-approve" title="Approuver" (click)="approveTask(task.id)">
                     <i class="bi bi-check"></i>
                   </button>
-                  <button class="btn-reject" (click)="rejectTask(task.id)">
+                  <button class="btn-action btn-reject" title="Rejeter" (click)="rejectTask(task.id)">
                     <i class="bi bi-x"></i>
                   </button>
                 </div>
@@ -600,7 +627,7 @@
       <div *ngIf="activeSection === 'reunions'" class="section fade-in">
         <div class="meetings-header">
           <div class="header-actions">
-            <button class="btn-primary">
+            <button class="btn-primary" (click)="openCreateMeetingModal()">
               <i class="bi bi-plus-circle"></i>
               Nouvelle Réunion
             </button>
@@ -617,9 +644,16 @@
 
         <div class="meetings-calendar">
           <div class="calendar-header">
-            <button class="calendar-nav"><i class="bi bi-chevron-left"></i></button>
-            <h3 class="calendar-title">Mars 2024</h3>
-            <button class="calendar-nav"><i class="bi bi-chevron-right"></i></button>
+            <button class="calendar-nav" (click)="previousMonth()">
+              <i class="bi bi-chevron-left"></i>
+            </button>
+            <h3 class="calendar-title">{{ calendarMonth }} {{ calendarYear }}</h3>
+            <button class="calendar-nav" (click)="nextMonth()">
+              <i class="bi bi-chevron-right"></i>
+            </button>
+            <button class="calendar-today" (click)="goToCurrentMonth()" title="Aujourd'hui">
+              <i class="bi bi-calendar-check"></i>
+            </button>
           </div>
           
           <div class="calendar-grid">
@@ -627,13 +661,24 @@
             <div class="calendar-day" 
                  *ngFor="let day of calendarDays" 
                  [class.today]="day.isToday"
-                 [class.has-meeting]="day.hasMeeting">
+                 [class.has-meeting]="day.hasMeeting"
+                 [class.clickable]="day.hasMeeting"
+                 (click)="day.hasMeeting ? showDayMeetingsModalFunc(day) : null"
+                 [title]="day.meetings.length > 0 ? getDayMeetingsTooltip(day) : ''">
               <span class="day-number">{{ day.number }}</span>
-              <div class="meeting-dots" *ngIf="day.meetings.length">
-                <div class="meeting-dot" 
-                     *ngFor="let meeting of day.meetings.slice(0,3)"
-                     [ngStyle]="{ 'background-color': meeting.color }">
+              <div class="meeting-indicators" *ngIf="day.meetings.length">
+                <div class="meeting-indicator" 
+                     *ngFor="let meeting of day.meetings.slice(0,4)"
+                     [ngStyle]="{ 'background-color': meeting.color }"
+                     [title]="meeting.title + ' - ' + meeting.time">
                 </div>
+                <span class="more-indicators" *ngIf="day.meetings.length > 4" 
+                      [title]="'+' + (day.meetings.length - 4) + ' réunion(s)'">
+                  +{{ day.meetings.length - 4 }}
+                </span>
+              </div>
+              <div class="meeting-count" *ngIf="day.meetings.length > 0">
+                {{ day.meetings.length }}
               </div>
             </div>
           </div>
@@ -642,27 +687,42 @@
         <div class="upcoming-meetings">
           <h3 class="section-title">Réunions à venir</h3>
           <div class="meetings-list">
-            <div class="meeting-card" *ngFor="let meeting of upcomingMeetings">
+            <div class="meeting-card" *ngFor="let meeting of upcomingMeetings" [class]="'meeting-' + meeting.type">
               <div class="meeting-time">
-                <span class="time">{{ meeting.time }}</span>
+                <span class="time">{{ meeting.date | date:'HH:mm' }}</span>
                 <span class="duration">{{ meeting.duration }}</span>
               </div>
               <div class="meeting-info">
                 <h4 class="meeting-title">{{ meeting.title }}</h4>
+                <div class="meeting-meta">
+                  <span class="meeting-location">
+                    <i class="bi" [ngClass]="meeting.location === 'Visioconférence' ? 'bi-camera-video' : 'bi-geo-alt'"></i>
+                    {{ meeting.location }}
+                  </span>
+                  <span class="meeting-date">{{ meeting.date | date:'dd MMM yyyy' }}</span>
+                </div>
                 <div class="meeting-participants">
                   <div class="participant-avatars">
-                    <div class="avatar grad-{{ p.color }}" 
-                         *ngFor="let p of meeting.participants.slice(0,3)"
-                         [title]="p.name">{{ p.initials }}</div>
-                    <span class="more-count" *ngIf="meeting.participants.length > 3">
-                      +{{ meeting.participants.length - 3 }}
+                    <div class="avatar" 
+                         *ngFor="let participant of getMeetingParticipants(meeting).slice(0,3)"
+                         [ngStyle]="{ 'background-color': participant.color }"
+                         [title]="participant.name">{{ participant.initials }}</div>
+                    <span class="more-count" *ngIf="getMeetingParticipants(meeting).length > 3">
+                      +{{ getMeetingParticipants(meeting).length - 3 }}
                     </span>
                   </div>
+                  <span class="participant-count">{{ meeting.participants }} participants</span>
                 </div>
               </div>
               <div class="meeting-actions">
-                <button class="btn-icon" title="Rejoindre">
-                  <i class="bi bi-camera-video"></i>
+                <button class="btn-icon" title="Voir les détails" (click)="viewMeeting(meeting)">
+                  <i class="bi bi-eye"></i>
+                </button>
+                <button class="btn-icon" title="Modifier" (click)="editMeeting(meeting)">
+                  <i class="bi bi-pencil"></i>
+                </button>
+                <button class="btn-icon danger" title="Supprimer" (click)="deleteMeeting(meeting.id)">
+                  <i class="bi bi-trash"></i>
                 </button>
               </div>
             </div>
@@ -1470,6 +1530,336 @@
 
       <div class="form-actions">
         <button type="button" class="btn-secondary" (click)="closeEditTaskModal()">
+          Annuler
+        </button>
+        <button type="submit" class="btn-primary" [disabled]="loading">
+          <span *ngIf="!loading">Mettre à jour</span>
+          <span *ngIf="loading">Mise à jour...</span>
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Modal des réunions du jour -->
+<div *ngIf="showDayMeetingsModal" class="modal-overlay" (click)="closeDayMeetingsModal()">
+  <div class="modal-content day-meetings-modal" (click)="stopPropagation($event)">
+    <div class="modal-header">
+      <h2 class="modal-title">
+        Réunions du {{ selectedDay?.number }} {{ calendarMonth }} {{ calendarYear }}
+      </h2>
+      <button class="modal-close" (click)="closeDayMeetingsModal()">
+        <i class="bi bi-x-lg"></i>
+      </button>
+    </div>
+    
+    <div class="modal-body">
+      <div class="day-meetings-list" *ngIf="selectedDayMeetings.length">
+        <div class="day-meeting-item" 
+             *ngFor="let meeting of selectedDayMeetings; let i = index"
+             [class]="'meeting-' + meeting.type">
+          <div class="meeting-time-badge">
+            <i class="bi bi-clock"></i>
+            <span>{{ meeting.time }}</span>
+          </div>
+          <div class="meeting-info">
+            <h4 class="meeting-title">{{ meeting.title }}</h4>
+            <div class="meeting-details">
+              <span class="meeting-location">
+                <i class="bi" [ngClass]="meeting.location === 'Visioconférence' ? 'bi-camera-video' : 'bi-geo-alt'"></i>
+                {{ meeting.location }}
+              </span>
+              <span class="meeting-duration">{{ meeting.duration }}</span>
+            </div>
+          </div>
+          <div class="meeting-actions">
+            <button class="btn-icon" title="Voir les détails" (click)="viewMeetingFromDay(meeting)">
+              <i class="bi bi-eye"></i>
+            </button>
+            <button class="btn-icon" title="Modifier" (click)="editMeetingFromDay(meeting)">
+              <i class="bi bi-pencil"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+      
+      <div class="no-meetings" *ngIf="!selectedDayMeetings.length">
+        <i class="bi bi-calendar-x"></i>
+        <h3>Aucune réunion ce jour</h3>
+        <p>Cliquez sur "Nouvelle Réunion" pour en créer une.</p>
+      </div>
+    </div>
+
+    <div class="modal-footer">
+      <button type="button" class="btn-secondary" (click)="closeDayMeetingsModal()">
+        Fermer
+      </button>
+      <button type="button" class="btn-primary" (click)="openCreateMeetingModalForDay()">
+        <i class="bi bi-plus-circle"></i>
+        Créer une réunion ce jour
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal de création de réunion -->
+<div *ngIf="showCreateMeetingModal" class="modal-overlay" (click)="closeCreateMeetingModal()">
+  <div class="modal-content" (click)="stopPropagation($event)">
+    <div class="modal-header">
+      <h2 class="modal-title">Créer une nouvelle réunion</h2>
+      <button class="modal-close" (click)="closeCreateMeetingModal()">
+        <i class="bi bi-x-lg"></i>
+      </button>
+    </div>
+    
+    <form class="modal-body" (ngSubmit)="createMeeting()">
+      <div class="form-group">
+        <label for="meetingTitle">Titre de la réunion *</label>
+        <input 
+          type="text" 
+          id="meetingTitle" 
+          name="meetingTitle"
+          [(ngModel)]="newMeeting.title" 
+          required
+          placeholder="Entrez le titre de la réunion">
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label for="meetingDate">Date *</label>
+          <input 
+            type="datetime-local" 
+            id="meetingDate" 
+            name="meetingDate"
+            [(ngModel)]="newMeeting.date" 
+            required>
+        </div>
+        <div class="form-group">
+          <label for="meetingDuration">Durée</label>
+          <select id="meetingDuration" name="meetingDuration" [(ngModel)]="newMeeting.duration">
+            <option value="30min">30 minutes</option>
+            <option value="1h">1 heure</option>
+            <option value="1h30">1h30</option>
+            <option value="2h">2 heures</option>
+            <option value="3h">3 heures</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label for="meetingLocation">Lieu</label>
+          <input 
+            type="text" 
+            id="meetingLocation" 
+            name="meetingLocation"
+            [(ngModel)]="newMeeting.location" 
+            placeholder="Salle A, Visioconférence, etc.">
+        </div>
+        <div class="form-group">
+          <label for="meetingType">Type</label>
+          <select id="meetingType" name="meetingType" [(ngModel)]="newMeeting.type">
+            <option value="team">Équipe</option>
+            <option value="client">Client</option>
+            <option value="technical">Technique</option>
+            <option value="review">Revue</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="meetingParticipants">Nombre de participants</label>
+        <input 
+          type="number" 
+          id="meetingParticipants" 
+          name="meetingParticipants"
+          [(ngModel)]="newMeeting.participants" 
+          min="1"
+          placeholder="Nombre de participants">
+      </div>
+
+      <div class="form-group">
+        <label for="meetingNotes">Notes</label>
+        <textarea 
+          id="meetingNotes" 
+          name="meetingNotes"
+          [(ngModel)]="newMeeting.notes" 
+          rows="3"
+          placeholder="Notes supplémentaires..."></textarea>
+      </div>
+
+      <div class="form-actions">
+        <button type="button" class="btn-secondary" (click)="closeCreateMeetingModal()">
+          Annuler
+        </button>
+        <button type="submit" class="btn-primary" [disabled]="loading">
+          <span *ngIf="!loading">Créer la réunion</span>
+          <span *ngIf="loading">Création...</span>
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Modal de visualisation de réunion -->
+<div *ngIf="showViewMeetingModal" class="modal-overlay" (click)="closeViewMeetingModal()">
+  <div class="modal-content" (click)="stopPropagation($event)">
+    <div class="modal-header">
+      <h2 class="modal-title">Détails de la réunion</h2>
+      <button class="modal-close" (click)="closeViewMeetingModal()">
+        <i class="bi bi-x-lg"></i>
+      </button>
+    </div>
+    
+    <div class="modal-body" *ngIf="selectedMeeting">
+      <div class="meeting-details">
+        <div class="detail-header">
+          <h3>{{ selectedMeeting.title }}</h3>
+          <span class="meeting-type-badge" [ngStyle]="{ 'background-color': getMeetingTypeColor(selectedMeeting.type) }">
+            {{ getMeetingTypeLabel(selectedMeeting.type) }}
+          </span>
+        </div>
+
+        <div class="detail-row">
+          <div class="detail-item">
+            <label>Date</label>
+            <p>{{ selectedMeeting.date | date:'dd MMMM yyyy à HH:mm' }}</p>
+          </div>
+          <div class="detail-item">
+            <label>Durée</label>
+            <p>{{ selectedMeeting.duration }}</p>
+          </div>
+        </div>
+
+        <div class="detail-row">
+          <div class="detail-item">
+            <label>Lieu</label>
+            <p>{{ selectedMeeting.location }}</p>
+          </div>
+          <div class="detail-item">
+            <label>Participants</label>
+            <p>{{ selectedMeeting.participants }} personnes</p>
+          </div>
+        </div>
+
+        <div class="detail-row" *ngIf="selectedMeeting.agenda && selectedMeeting.agenda.length">
+          <div class="detail-item full-width">
+            <label>Ordre du jour</label>
+            <ul>
+              <li *ngFor="let item of selectedMeeting.agenda">{{ item }}</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="detail-row" *ngIf="selectedMeeting.notes">
+          <div class="detail-item full-width">
+            <label>Notes</label>
+            <p>{{ selectedMeeting.notes }}</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal-footer">
+      <button type="button" class="btn-secondary" (click)="closeViewMeetingModal()">
+        Fermer
+      </button>
+      <button type="button" class="btn-primary" (click)="editMeeting(selectedMeeting)">
+        <i class="bi bi-pencil"></i>
+        Modifier
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal d'édition de réunion -->
+<div *ngIf="showEditMeetingModal" class="modal-overlay" (click)="closeEditMeetingModal()">
+  <div class="modal-content" (click)="stopPropagation($event)">
+    <div class="modal-header">
+      <h2 class="modal-title">Modifier la réunion</h2>
+      <button class="modal-close" (click)="closeEditMeetingModal()">
+        <i class="bi bi-x-lg"></i>
+      </button>
+    </div>
+    
+    <form class="modal-body" (ngSubmit)="updateMeeting()">
+      <div class="form-group">
+        <label for="editMeetingTitle">Titre de la réunion *</label>
+        <input 
+          type="text" 
+          id="editMeetingTitle" 
+          name="editMeetingTitle"
+          [(ngModel)]="meetingToEdit.title" 
+          required
+          placeholder="Entrez le titre de la réunion">
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label for="editMeetingDate">Date *</label>
+          <input 
+            type="datetime-local" 
+            id="editMeetingDate" 
+            name="editMeetingDate"
+            [(ngModel)]="meetingToEdit.date" 
+            required>
+        </div>
+        <div class="form-group">
+          <label for="editMeetingDuration">Durée</label>
+          <select id="editMeetingDuration" name="editMeetingDuration" [(ngModel)]="meetingToEdit.duration">
+            <option value="30min">30 minutes</option>
+            <option value="1h">1 heure</option>
+            <option value="1h30">1h30</option>
+            <option value="2h">2 heures</option>
+            <option value="3h">3 heures</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label for="editMeetingLocation">Lieu</label>
+          <input 
+            type="text" 
+            id="editMeetingLocation" 
+            name="editMeetingLocation"
+            [(ngModel)]="meetingToEdit.location" 
+            placeholder="Salle A, Visioconférence, etc.">
+        </div>
+        <div class="form-group">
+          <label for="editMeetingType">Type</label>
+          <select id="editMeetingType" name="editMeetingType" [(ngModel)]="meetingToEdit.type">
+            <option value="team">Équipe</option>
+            <option value="client">Client</option>
+            <option value="technical">Technique</option>
+            <option value="review">Revue</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="editMeetingParticipants">Nombre de participants</label>
+        <input 
+          type="number" 
+          id="editMeetingParticipants" 
+          name="editMeetingParticipants"
+          [(ngModel)]="meetingToEdit.participants" 
+          min="1"
+          placeholder="Nombre de participants">
+      </div>
+
+      <div class="form-group">
+        <label for="editMeetingNotes">Notes</label>
+        <textarea 
+          id="editMeetingNotes" 
+          name="editMeetingNotes"
+          [(ngModel)]="meetingToEdit.notes" 
+          rows="3"
+          placeholder="Notes supplémentaires..."></textarea>
+      </div>
+
+      <div class="form-actions">
+        <button type="button" class="btn-secondary" (click)="closeEditMeetingModal()">
           Annuler
         </button>
         <button type="submit" class="btn-primary" [disabled]="loading">

@@ -29,10 +29,12 @@ const userRoutes = require('./routes/users');
 const projectRoutes = require('./routes/projects');
 const taskRoutes = require('./routes/tasks');
 const timesheetRoutes = require('./routes/timesheet');
+const meetingRoutes = require('./routes/meetings');
 app.use('/api/users', userRoutes);
 app.use('/api/projects', projectRoutes);
 app.use('/api/tasks', taskRoutes);
 app.use('/api/timesheet', timesheetRoutes);
+app.use('/api/meetings', meetingRoutes);
 
 // Error handling middleware
 app.use((err, req, res, next) => {

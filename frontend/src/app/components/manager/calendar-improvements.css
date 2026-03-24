@@ -1,0 +1,228 @@
+/* Améliorations pour le calendrier des réunions */
+
+/* Points de réunions plus visibles */
+.meeting-indicators {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  margin-top: 4px;
+  justify-content: center;
+}
+
+.meeting-indicator {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+  transition: transform 0.2s ease;
+}
+
+.meeting-indicator:hover {
+  transform: scale(1.3);
+}
+
+.more-indicators {
+  font-size: 10px;
+  color: #666;
+  background: #f0f0f0;
+  border-radius: 50%;
+  width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+}
+
+/* Compteur de réunions */
+.meeting-count {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  background: #ff6b6b;
+  color: white;
+  border-radius: 50%;
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: bold;
+  border: 2px solid white;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+/* Jours cliquables */
+.calendar-day.clickable {
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.calendar-day.clickable:hover {
+  background-color: #f8f9fa;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+.calendar-day.clickable.has-meeting:hover {
+  background-color: #e3f2fd;
+  border-color: #2196f3;
+}
+
+/* Modal des réunions du jour */
+.day-meetings-modal {
+  max-width: 600px;
+  max-height: 80vh;
+  overflow-y: auto;
+}
+
+.day-meetings-list {
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.day-meeting-item {
+  display: flex;
+  align-items: center;
+  padding: 12px;
+  margin-bottom: 8px;
+  border-radius: 8px;
+  border-left: 4px solid;
+  background: #f8f9fa;
+  transition: all 0.2s ease;
+}
+
+.day-meeting-item:hover {
+  transform: translateX(4px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.day-meeting-item.meeting-team {
+  border-left-color: #10B981;
+  background: linear-gradient(to right, #f0fdf4, #f8f9fa);
+}
+
+.day-meeting-item.meeting-client {
+  border-left-color: #3B82F6;
+  background: linear-gradient(to right, #eff6ff, #f8f9fa);
+}
+
+.day-meeting-item.meeting-technical {
+  border-left-color: #F59E0B;
+  background: linear-gradient(to right, #fffbeb, #f8f9fa);
+}
+
+.day-meeting-item.meeting-review {
+  border-left-color: #8B5CF6;
+  background: linear-gradient(to right, #f3e8ff, #f8f9fa);
+}
+
+.meeting-time-badge {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: white;
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #666;
+  border: 1px solid #e0e0e0;
+  min-width: 60px;
+  justify-content: center;
+}
+
+.meeting-info {
+  flex: 1;
+  margin-left: 12px;
+}
+
+.meeting-title {
+  font-size: 14px;
+  font-weight: 600;
+  margin: 0 0 4px 0;
+  color: #333;
+}
+
+.meeting-details {
+  display: flex;
+  gap: 12px;
+  font-size: 12px;
+  color: #666;
+}
+
+.meeting-location,
+.meeting-duration {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.meeting-actions {
+  display: flex;
+  gap: 4px;
+}
+
+.no-meetings {
+  text-align: center;
+  padding: 40px 20px;
+  color: #666;
+}
+
+.no-meetings i {
+  font-size: 48px;
+  color: #ddd;
+  margin-bottom: 16px;
+}
+
+.no-meetings h3 {
+  margin: 0 0 8px 0;
+  color: #333;
+}
+
+.no-meetings p {
+  margin: 0;
+  font-size: 14px;
+}
+
+/* Amélioration des jours du calendrier */
+.calendar-day {
+  position: relative;
+  min-height: 60px;
+  padding: 4px;
+}
+
+.calendar-day.today {
+  background: linear-gradient(135deg, #fff3cd, #fff8e1);
+  border: 2px solid #ffc107;
+  font-weight: bold;
+}
+
+.calendar-day.has-meeting {
+  background: linear-gradient(135deg, #f8f9fa, #ffffff);
+  border: 1px solid #e9ecef;
+}
+
+.day-number {
+  font-size: 12px;
+  font-weight: 500;
+  color: #333;
+}
+
+/* Animation d'apparition */
+.day-meetings-modal .modal-content {
+  animation: slideUp 0.3s ease-out;
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

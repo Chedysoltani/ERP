@@ -1,0 +1,311 @@
+/* Améliorations pour les tâches en attente */
+
+/* Correction du padding excessif autour de la section des tâches */
+.content-grid {
+  margin-bottom: 16px !important; /* Réduire le margin-bottom par défaut */
+}
+
+.content-grid .tasks-card {
+  margin: 0; /* S'assurer qu'il n'y a pas de margin supplémentaire */
+}
+
+/* Conteneur des tâches */
+.tasks-card {
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+  margin: 0; /* Pas de margin externe */
+}
+
+/* Header de la carte */
+.tasks-card .card-header {
+  padding: 16px 20px 12px 20px; /* Padding plus serré */
+  border-bottom: 1px solid #f0f0f0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: white;
+}
+
+.tasks-list {
+  max-height: 500px;
+  overflow-y: auto;
+  padding: 0; /* Pas de padding interne supplémentaire */
+}
+
+/* Message aucune tâche */
+.no-tasks {
+  text-align: center;
+  padding: 40px 20px;
+  color: #666;
+}
+
+.no-tasks i {
+  font-size: 48px;
+  color: #10B981;
+  margin-bottom: 16px;
+  display: block;
+}
+
+.no-tasks h3 {
+  margin: 0 0 8px 0;
+  color: #333;
+  font-size: 18px;
+}
+
+.no-tasks p {
+  margin: 0;
+  font-size: 14px;
+  color: #666;
+}
+
+/* Item de tâche */
+.task-item {
+  display: flex;
+  align-items: center;
+  padding: 16px;
+  border-bottom: 1px solid #f0f0f0;
+  transition: all 0.2s ease;
+  gap: 12px;
+}
+
+.task-item:hover {
+  background-color: #f8f9fa;
+  transform: translateX(4px);
+}
+
+.task-item:last-child {
+  border-bottom: none;
+}
+
+/* Checkbox */
+.task-checkbox {
+  position: relative;
+}
+
+.task-checkbox input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.task-checkbox label {
+  width: 18px;
+  height: 18px;
+  border: 2px solid #ddd;
+  border-radius: 4px;
+  display: block;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  position: relative;
+}
+
+.task-checkbox input[type="checkbox"]:checked + label {
+  background-color: #10B981;
+  border-color: #10B981;
+}
+
+.task-checkbox input[type="checkbox"]:checked + label::after {
+  content: '✓';
+  position: absolute;
+  top: -2px;
+  left: 2px;
+  color: white;
+  font-size: 12px;
+  font-weight: bold;
+}
+
+.task-checkbox label:hover {
+  border-color: #10B981;
+  background-color: #f0fdf4;
+}
+
+/* Informations de la tâche */
+.task-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.task-title {
+  margin: 0 0 4px 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: #333;
+  line-height: 1.4;
+}
+
+.task-description {
+  margin: 0 0 8px 0;
+  font-size: 13px;
+  color: #666;
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.task-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  font-size: 12px;
+  color: #666;
+}
+
+.task-meta span {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.task-meta i {
+  font-size: 11px;
+  opacity: 0.7;
+}
+
+/* Priorité */
+.task-priority {
+  flex-shrink: 0;
+}
+
+.priority-badge {
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: white;
+  white-space: nowrap;
+}
+
+.priority-high {
+  background-color: #EF4444 !important;
+}
+
+.priority-medium {
+  background-color: #F59E0B !important;
+}
+
+.priority-low {
+  background-color: #10B981 !important;
+}
+
+/* Actions */
+.task-actions {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.btn-action {
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 14px;
+}
+
+.btn-view {
+  background-color: #f3f4f6;
+  color: #6b7280;
+}
+
+.btn-view:hover {
+  background-color: #e5e7eb;
+  color: #374151;
+}
+
+.btn-approve {
+  background-color: #10B981;
+  color: white;
+}
+
+.btn-approve:hover {
+  background-color: #059669;
+  transform: scale(1.1);
+}
+
+.btn-reject {
+  background-color: #EF4444;
+  color: white;
+}
+
+.btn-reject:hover {
+  background-color: #DC2626;
+  transform: scale(1.1);
+}
+
+/* Compteur de tâches */
+.pending-count {
+  background-color: #3B82F6;
+  color: white;
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .task-item {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+  
+  .task-checkbox {
+    align-self: flex-start;
+  }
+  
+  .task-meta {
+    flex-direction: column;
+    gap: 4px;
+  }
+  
+  .task-actions {
+    align-self: flex-end;
+  }
+}
+
+/* Animation d'apparition */
+.task-item {
+  animation: slideIn 0.3s ease-out;
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* Scrollbar personnalisée */
+.tasks-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.tasks-list::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 3px;
+}
+
+.tasks-list::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 3px;
+}
+
+.tasks-list::-webkit-scrollbar-thumb:hover {
+  background: #a8a8a8;
+}

@@ -1,6 +1,6 @@
 import { Component, HostListener, OnInit } from '@angular/core';
 import { Router } from '@angular/router';
-import { ManagerAuthService, Manager, Project } from '../../services/manager-auth.service';
+import { ManagerAuthService, Manager, Project, Meeting } from '../../services/manager-auth.service';
 
 export type SectionId =
   | 'dashboard' | 'projets' | 'taches' | 'gantt'
@@ -24,7 +24,7 @@ interface CalendarDay {
   number: number;
   isToday: boolean;
   hasMeeting: boolean;
-  meetings: { color: string }[];
+  meetings: { color: string; title: string; time: string }[];
 }
 
 interface Task {
@@ -37,6 +37,7 @@ interface Task {
   avatarColor: string;
   dueDate: string;
   progress: number;
+  status: string;
   tags: string[];
   submittedAt?: string;
 }
@@ -44,7 +45,7 @@ interface Task {
 @Component({
   selector: 'app-dashboard',
   templateUrl: './manager-dashboard.component.html',
-  styleUrls: ['./manager-dashboard.component.css']
+  styleUrls: ['./manager-dashboard.component.css', './calendar-improvements.css', './tasks-improvements.css']
 })
 export class ManagerDashboardComponent implements OnInit {
   activeSection: SectionId = 'dashboard';
@@ -64,6 +65,41 @@ export class ManagerDashboardComponent implements OnInit {
     endDate: '',
     budget: 0
   };
+
+  // Propriétés pour les réunions
+  showCreateMeetingModal = false;
+  showViewMeetingModal = false;
+  showEditMeetingModal = false;
+  showDayMeetingsModal = false;
+  selectedMeeting: any = null;
+  selectedDay: CalendarDay | null = null;
+  selectedDayMeetings: any[] = [];
+  meetingToEdit: any = {
+    title: '',
+    date: '',
+    duration: '1h',
+    location: 'Salle A',
+    type: 'team',
+    agenda: [],
+    participants: [],
+    notes: ''
+  };
+  newMeeting: any = {
+    title: '',
+    date: '',
+    duration: '1h',
+    location: 'Salle A',
+    type: 'team',
+    agenda: [],
+    participants: [],
+    notes: ''
+  };
+
+  // Propriétés pour la navigation du calendrier
+  currentCalendarDate = new Date();
+  calendarMonth = '';
+  calendarYear = 0;
+
   currentManager: Manager | null = null;
   loading = false;
 
@@ -92,6 +128,9 @@ export class ManagerDashboardComponent implements OnInit {
     
     // Charger les utilisateurs depuis la base de données
     this.loadUsersFromDatabase();
+    
+    // Charger les réunions depuis la base de données
+    this.loadMeetingsFromDatabase();
     
     // Calculer les statistiques
     this.calculateStats();
@@ -182,10 +221,19 @@ export class ManagerDashboardComponent implements OnInit {
       return;
     }
 
+    // Initialiser le tableau des tâches
+    this.tasks = [];
+
     // Charger les tâches par statut pour le Kanban
     this.loadTasksByStatus('todo');
     this.loadTasksByStatus('in_progress');
     this.loadTasksByStatus('done');
+    
+    // Appeler calculateStats après un délai pour laisser le temps aux chargements asynchrones
+    setTimeout(() => {
+      console.log('Recalcul des statistiques après chargement des tâches...');
+      this.calculateStats();
+    }, 1000);
   }
 
   loadUsersFromDatabase() {
@@ -237,6 +285,52 @@ export class ManagerDashboardComponent implements OnInit {
     });
   }
 
+  loadMeetingsFromDatabase() {
+    console.log('Début du chargement des réunions depuis la base...');
+    
+    if (!this.currentManager) {
+      console.error('Aucun manager connecté pour charger les réunions');
+      return;
+    }
+
+    this.managerAuthService.getMeetings().subscribe({
+      next: (response: any) => {
+        const meetings = response.data || response;
+        console.log('Réunions chargées depuis la base:', meetings);
+        
+        // Transformer les réunions pour l'affichage
+        this.meetings = meetings.map((meeting: any) => ({
+          id: meeting.id,
+          title: meeting.title,
+          date: meeting.date_time,
+          duration: meeting.duration,
+          location: meeting.location,
+          participants: meeting.participants,
+          type: meeting.type,
+          agenda: meeting.agenda || [],
+          status: meeting.status,
+          notes: meeting.notes || '',
+          color: meeting.type === 'team' ? '#10B981' : meeting.type === 'client' ? '#3B82F6' : meeting.type === 'technical' ? '#F59E0B' : '#8B5CF6'
+        }));
+        
+        // Mettre à jour les réunions à venir
+        this.upcomingMeetings = this.meetings.filter(m => m.status === 'upcoming' || m.status === 'scheduled');
+        
+        console.log('Réunions transformées pour affichage:', this.meetings);
+        console.log('Réunions à venir:', this.upcomingMeetings);
+        
+        // Synchroniser le calendrier après le chargement
+        this.syncCalendarWithMeetings();
+        console.log('Calendrier synchronisé après chargement des réunions');
+      },
+      error: (error: any) => {
+        console.error('Erreur lors du chargement des réunions:', error);
+        console.log('Fallback: utilisation des données locales');
+        // Conserver les données mockées en cas d'erreur
+      }
+    });
+  }
+
   getProjectStatusLabel(status: string): string {
     const labels = {
       'active': 'Actif',
@@ -253,6 +347,13 @@ export class ManagerDashboardComponent implements OnInit {
         const tasks = response.data || response;
         console.log(`Tâches ${status} chargées:`, tasks);
         
+        if (tasks.length === 0) {
+          console.log(`Aucune tâche ${status} trouvée dans la base de données`);
+          // Utiliser les données mockées si aucune tâche trouvée
+          this.loadMockTasksForStatus(status);
+          return;
+        }
+        
         // Transformer les tâches pour l'affichage
         const transformedTasks = tasks.map((task: any) => ({
           id: task.id,
@@ -262,17 +363,29 @@ export class ManagerDashboardComponent implements OnInit {
           status: task.status,
           assignee: 'Non assigné',
           assigneeInitials: 'NA',
-          avatarColor: this.getAvatarColor(task.assignee_id || 0),
-          dueDate: task.due_date ? new Date(task.due_date).toLocaleDateString('fr-FR') : 'Non définie',
+          avatarColor: this.getAvatarColor(task.id),
+          dueDate: task.due_date || new Date().toISOString().split('T')[0],
           progress: task.progress || 0,
           tags: task.tags ? JSON.parse(task.tags) : [],
-          project: 'Non assigné',
-          submittedAt: task.created_at,
-          actualHours: task.actual_hours || 0,
-          estimatedHours: task.estimated_hours || 0
+          submittedAt: task.created_at || new Date().toISOString()
         }));
-
-        // Mettre à jour le tableau correspondant
+        
+        // Mettre à jour le tableau de tâches principal
+        if (!this.tasks) {
+          this.tasks = [];
+        }
+        
+        // Ajouter les nouvelles tâches ou mettre à jour les existantes
+        transformedTasks.forEach((newTask: Task) => {
+          const existingIndex = this.tasks.findIndex(t => t.id === newTask.id);
+          if (existingIndex >= 0) {
+            this.tasks[existingIndex] = newTask;
+          } else {
+            this.tasks.push(newTask);
+          }
+        });
+        
+        // Mettre à jour les tableaux spécifiques
         switch(status) {
           case 'todo':
             this.todoTasks = transformedTasks;
@@ -284,6 +397,9 @@ export class ManagerDashboardComponent implements OnInit {
             this.doneTasks = transformedTasks;
             break;
         }
+        
+        console.log(`Tâches ${status} transformées:`, transformedTasks);
+        console.log('Total des tâches après chargement:', this.tasks.length);
       },
       error: (error: any) => {
         console.error(`Erreur lors du chargement des tâches ${status}:`, error);
@@ -292,20 +408,39 @@ export class ManagerDashboardComponent implements OnInit {
       }
     });
   }
-
   loadMockTasksForStatus(status: string) {
     console.log(`Chargement des tâches mockées pour le statut: ${status}`);
+    
+    // Filtrer les tâches mockées par statut
+    const mockTasksForStatus = this.baseTasks.filter(task => task.status === status);
+    
+    // Ajouter les tâches mockées au tableau principal
+    if (!this.tasks) {
+      this.tasks = [];
+    }
+    
+    mockTasksForStatus.forEach((mockTask: Task) => {
+      const existingIndex = this.tasks.findIndex(t => t.id === mockTask.id);
+      if (existingIndex === -1) {
+        this.tasks.push(mockTask);
+      }
+    });
+    
     switch(status) {
       case 'todo':
-        this.todoTasks = this.baseTasks;
+        this.todoTasks = mockTasksForStatus;
         break;
       case 'in_progress':
-        this.inProgressTasks = this.inProgressTasks;
+        this.inProgressTasks = mockTasksForStatus;
         break;
       case 'done':
-        this.doneTasks = this.doneTasks;
+        // Conserver la structure originale de doneTasks avec completedDate
+        // this.doneTasks reste inchangé (structure différente)
         break;
     }
+    
+    console.log(`Tâches mockées ${status} ajoutées:`, mockTasksForStatus.length);
+    console.log('Total des tâches après ajout mockées:', this.tasks.length);
   }
 
   getAvatarColor(userId: number): string {
@@ -373,6 +508,7 @@ export class ManagerDashboardComponent implements OnInit {
       avatarColor: 'purple',
       dueDate: '17 Mars',
       progress: 85,
+      status: 'in_progress',
       tags: ['design', 'review']
     },
     {
@@ -385,6 +521,7 @@ export class ManagerDashboardComponent implements OnInit {
       avatarColor: 'teal',
       dueDate: '18 Mars',
       progress: 70,
+      status: 'in_progress',
       tags: ['backend', 'api']
     },
     {
@@ -392,12 +529,52 @@ export class ManagerDashboardComponent implements OnInit {
       title: 'Database schema',
       description: 'Définir les schéma de la base de données',
       priority: 'medium',
-      assignee: 'Pierre Bernard',
-      assigneeInitials: 'PB',
+      assignee: 'Pierre Durand',
+      assigneeInitials: 'PD',
       avatarColor: 'amber',
-      dueDate: '20 Mars',
+      dueDate: '19 Mars',
       progress: 60,
+      status: 'todo',
       tags: ['database', 'schema']
+    },
+    {
+      id: 4,
+      title: 'UI components',
+      description: 'Créer les composants réutilisables',
+      priority: 'medium',
+      assignee: 'Sophie Lefebvre',
+      assigneeInitials: 'SL',
+      avatarColor: 'rose',
+      dueDate: '20 Mars',
+      progress: 45,
+      status: 'todo',
+      tags: ['frontend', 'components']
+    },
+    {
+      id: 5,
+      title: 'Testing',
+      description: 'Écrire les tests unitaires',
+      priority: 'low',
+      assignee: 'Thomas Bernard',
+      assigneeInitials: 'TB',
+      avatarColor: 'blue',
+      dueDate: '21 Mars',
+      progress: 30,
+      status: 'todo',
+      tags: ['testing', 'qa']
+    },
+    {
+      id: 6,
+      title: 'Documentation',
+      description: 'Rédiger la documentation technique',
+      priority: 'low',
+      assignee: 'Claude Moreau',
+      assigneeInitials: 'CM',
+      avatarColor: 'green',
+      dueDate: '22 Mars',
+      progress: 90,
+      status: 'done',
+      tags: ['docs', 'technical']
     }
   ];
 
@@ -1273,19 +1450,287 @@ export class ManagerDashboardComponent implements OnInit {
 
   // Méthodes pour calculer les statistiques
   calculateStats() {
-    this.totalHours = this.timesheets.reduce((sum, entry) => sum + entry.totalHours, 0);
-    this.avgHoursPerDay = this.totalHours / this.workedDays || 0;
-    this.upcomingMeetings = this.meetings.filter(m => m.status === 'upcoming' || m.status === 'scheduled');
-    this.calendarDays = Array.from({length: 31 }, (_, i) => ({
-      number: i + 1,
-      isToday: i + 1 === new Date().getDate(),
-      hasMeeting: false,
-      meetings: []
-    }));
+    console.log('=== CALCUL DES STATISTIQUES RÉELLES ===');
     
-    this.todoTasks = this.baseTasks;
-    this.inProgressTasks = this.inProgressTasks;
-    this.doneTasks = this.doneTasks;
+    // Statistiques des utilisateurs
+    this.globalStats.totalEmployees = this.allUsers.length;
+    console.log('Total employés:', this.globalStats.totalEmployees);
+    
+    // Statistiques des projets
+    this.globalStats.activeProjects = this.recentProjects.filter(p => p.status === 'active').length;
+    console.log('Projets actifs:', this.globalStats.activeProjects);
+    
+    // Statistiques des tâches
+    const completedTasks = this.tasks.filter(t => t.status === 'done').length;
+    const totalTasks = this.tasks.length;
+    this.globalStats.completedTasks = completedTasks;
+    console.log('Tâches complétées:', completedTasks, '/', totalTasks);
+    
+    // Définir les tâches en attente (todo et in_progress)
+    this.pendingTasks = this.tasks.filter(t => t.status === 'todo' || t.status === 'in_progress');
+    this.todoTasks = this.tasks.filter(t => t.status === 'todo');
+    this.inProgressTasks = this.tasks.filter(t => t.status === 'in_progress');
+    
+    // Conserver les doneTasks existants (structure différente)
+    // this.doneTasks reste inchangé
+    
+    console.log('Tâches en attente:', this.pendingTasks.length);
+    console.log('Tâches à faire:', this.todoTasks.length);
+    console.log('Tâches en cours:', this.inProgressTasks.length);
+    console.log('Tâches terminées (doneTasks):', this.doneTasks.length);
+    
+    // Statistiques des réunions à venir
+    const upcomingMeetingsCount = this.meetings.filter(m => 
+      m.status === 'upcoming' || m.status === 'scheduled'
+    ).length;
+    this.globalStats.pendingApprovals = upcomingMeetingsCount;
+    console.log('Réunions à venir:', upcomingMeetingsCount);
+    
+    // Statistiques supplémentaires
+    this.managersCount = this.allUsers.filter(u => u.role === 'manager').length;
+    this.employeesCount = this.allUsers.filter(u => u.role === 'employee').length;
+    this.adminsCount = this.allUsers.filter(u => u.role === 'admin').length;
+    
+    console.log('Répartition par rôle:', {
+      managers: this.managersCount,
+      employees: this.employeesCount,
+      admins: this.adminsCount
+    });
+    
+    // Synchroniser le calendrier avec les réunions réelles
+    this.syncCalendarWithMeetings();
+    
+    console.log('Statistiques finales:', this.globalStats);
+    console.log('=== FIN CALCUL STATISTIQUES ===');
+  }
+
+  // Synchroniser le calendrier avec les réunions
+  syncCalendarWithMeetings() {
+    console.log('=== SYNCHRONISATION CALENDRIER ===');
+    console.log('Réunions disponibles:', this.meetings);
+    
+    const currentYear = this.currentCalendarDate.getFullYear();
+    const currentMonth = this.currentCalendarDate.getMonth();
+    
+    console.log('Mois/année affichés:', currentMonth, currentYear);
+    
+    // Mettre à jour le titre du calendrier
+    const monthNames = ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 
+                     'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'];
+    this.calendarMonth = monthNames[currentMonth];
+    this.calendarYear = currentYear;
+    
+    // Obtenir le nombre de jours dans le mois courant
+    const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+    
+    console.log('Nombre de jours dans le mois:', daysInMonth);
+    
+    // Initialiser le calendrier avec les jours du mois
+    this.calendarDays = Array.from({length: daysInMonth }, (_, i) => {
+      const dayNumber = i + 1;
+      const dayDate = new Date(currentYear, currentMonth, dayNumber);
+      
+      return {
+        number: dayNumber,
+        isToday: this.isToday(dayDate),
+        hasMeeting: false,
+        meetings: []
+      };
+    });
+    
+    console.log('Jours du calendrier initialisés:', this.calendarDays.length);
+    
+    // Ajouter les réunions au calendrier
+    this.meetings.forEach(meeting => {
+      console.log('Traitement de la réunion:', meeting.title, meeting.date);
+      
+      const meetingDate = new Date(meeting.date);
+      console.log('Date de la réunion:', meetingDate, 'Mois:', meetingDate.getMonth(), 'Année:', meetingDate.getFullYear());
+      
+      // Vérifier si la réunion est dans le mois affiché
+      if (meetingDate.getMonth() === currentMonth && 
+          meetingDate.getFullYear() === currentYear) {
+        
+        const dayNumber = meetingDate.getDate();
+        const calendarDay = this.calendarDays.find(day => day.number === dayNumber);
+        
+        console.log('Jour trouvé pour le', dayNumber, ':', calendarDay ? 'OUI' : 'NON');
+        
+        if (calendarDay) {
+          calendarDay.hasMeeting = true;
+          calendarDay.meetings.push({
+            color: meeting.color || this.getMeetingTypeColor(meeting.type),
+            title: meeting.title,
+            time: meetingDate.toLocaleTimeString('fr-FR', { 
+              hour: '2-digit', 
+              minute: '2-digit' 
+            })
+          });
+          console.log('Réunion ajoutée au calendrier:', meeting.title, 'le jour', dayNumber);
+        }
+      } else {
+        console.log('Réunion hors du mois affiché');
+      }
+    });
+    
+    // Trier les réunions par heure pour chaque jour
+    this.calendarDays.forEach(day => {
+      day.meetings.sort((a, b) => {
+        const timeA = parseInt(a.time.replace(':', ''));
+        const timeB = parseInt(b.time.replace(':', ''));
+        return timeA - timeB;
+      });
+    });
+    
+    console.log('Jours avec réunions:', this.calendarDays.filter(day => day.hasMeeting).length);
+    console.log('=== FIN SYNCHRONISATION ===');
+  }
+
+  // Vérifier si une date est aujourd'hui
+  isToday(date: Date): boolean {
+    const today = new Date();
+    return date.getDate() === today.getDate() &&
+           date.getMonth() === today.getMonth() &&
+           date.getFullYear() === today.getFullYear();
+  }
+
+  // Navigation dans le calendrier
+  previousMonth() {
+    this.currentCalendarDate = new Date(
+      this.currentCalendarDate.getFullYear(),
+      this.currentCalendarDate.getMonth() - 1,
+      1
+    );
+    this.syncCalendarWithMeetings();
+  }
+
+  nextMonth() {
+    this.currentCalendarDate = new Date(
+      this.currentCalendarDate.getFullYear(),
+      this.currentCalendarDate.getMonth() + 1,
+      1
+    );
+    this.syncCalendarWithMeetings();
+  }
+
+  // Revenir au mois actuel
+  goToCurrentMonth() {
+    this.currentCalendarDate = new Date();
+    this.syncCalendarWithMeetings();
+  }
+
+  // Obtenir le texte du tooltip pour un jour avec réunions
+  getDayMeetingsTooltip(day: CalendarDay): string {
+    if (!day.meetings || day.meetings.length === 0) {
+      return '';
+    }
+    
+    const meetingList = day.meetings
+      .map(meeting => `• ${meeting.time} - ${meeting.title}`)
+      .join('\n');
+    
+    return `${day.meetings.length} réunion(s) ce jour:\n${meetingList}`;
+  }
+
+  // Afficher les réunions du jour
+  showDayMeetingsModalFunc(day: CalendarDay) {
+    this.selectedDay = day;
+    this.selectedDayMeetings = day.meetings.map(meeting => {
+      // Trouver la réunion complète correspondante
+      const fullMeeting = this.meetings.find(m => 
+        m.title === meeting.title && 
+        new Date(m.date).getDate() === day.number
+      );
+      return fullMeeting || meeting;
+    });
+    this.showDayMeetingsModal = true;
+  }
+
+  // Fermer le modal des réunions du jour
+  closeDayMeetingsModal() {
+    this.showDayMeetingsModal = false;
+    this.selectedDay = null;
+    this.selectedDayMeetings = [];
+  }
+
+  // Ouvrir le modal de création pour un jour spécifique
+  openCreateMeetingModalForDay() {
+    if (this.selectedDay) {
+      // Pré-remplir la date avec le jour sélectionné
+      const dayDate = new Date(
+        this.currentCalendarDate.getFullYear(),
+        this.currentCalendarDate.getMonth(),
+        this.selectedDay.number,
+        9, // 9h par défaut
+        0
+      );
+      
+      this.newMeeting.date = dayDate.toISOString().slice(0, 16); // Format YYYY-MM-DDTHH:MM
+    }
+    this.closeDayMeetingsModal();
+    this.openCreateMeetingModal();
+  }
+
+  // Voir une réunion depuis le modal du jour
+  viewMeetingFromDay(meeting: any) {
+    this.closeDayMeetingsModal();
+    this.viewMeeting(meeting);
+  }
+
+  // Modifier une réunion depuis le modal du jour
+  editMeetingFromDay(meeting: any) {
+    this.closeDayMeetingsModal();
+    this.editMeeting(meeting);
+  }
+
+  // Gestion de la sélection des tâches
+  selectedTaskIds: number[] = [];
+
+  toggleTaskSelection(taskId: number) {
+    const index = this.selectedTaskIds.indexOf(taskId);
+    if (index > -1) {
+      this.selectedTaskIds.splice(index, 1);
+    } else {
+      this.selectedTaskIds.push(taskId);
+    }
+    console.log('Tâches sélectionnées:', this.selectedTaskIds);
+  }
+
+  // Voir les détails d'une tâche
+  viewTaskDetails(task: Task) {
+    console.log('Voir les détails de la tâche:', task);
+    // TODO: Ouvrir un modal avec les détails de la tâche
+    alert(`Détails de la tâche: ${task.title}\nDescription: ${task.description}\nPriorité: ${task.priority}\nAssigné à: ${task.assignee}`);
+  }
+
+  // Approuver plusieurs tâches sélectionnées
+  approveSelectedTasks() {
+    if (this.selectedTaskIds.length === 0) {
+      alert('Veuillez sélectionner au moins une tâche');
+      return;
+    }
+    
+    if (confirm(`Approuver ${this.selectedTaskIds.length} tâche(s) sélectionnée(s)?`)) {
+      this.selectedTaskIds.forEach(taskId => {
+        this.approveTask(taskId);
+      });
+      this.selectedTaskIds = [];
+    }
+  }
+
+  // Rejeter plusieurs tâches sélectionnées
+  rejectSelectedTasks() {
+    if (this.selectedTaskIds.length === 0) {
+      alert('Veuillez sélectionner au moins une tâche');
+      return;
+    }
+    
+    if (confirm(`Rejeter ${this.selectedTaskIds.length} tâche(s) sélectionnée(s)?`)) {
+      this.selectedTaskIds.forEach(taskId => {
+        this.rejectTask(taskId);
+      });
+      this.selectedTaskIds = [];
+    }
   }
 
   // Méthodes pour la création de projet
@@ -1514,5 +1959,210 @@ export class ManagerDashboardComponent implements OnInit {
       endDate: '',
       budget: 0
     };
+  }
+
+  // Méthodes pour la gestion des réunions
+  openCreateMeetingModal() {
+    this.showCreateMeetingModal = true;
+  }
+
+  closeCreateMeetingModal() {
+    this.showCreateMeetingModal = false;
+    this.resetMeetingForm();
+  }
+
+  openViewMeetingModal() {
+    this.showViewMeetingModal = true;
+  }
+
+  closeViewMeetingModal() {
+    this.showViewMeetingModal = false;
+    this.selectedMeeting = null;
+  }
+
+  openEditMeetingModal() {
+    this.showEditMeetingModal = true;
+  }
+
+  closeEditMeetingModal() {
+    this.showEditMeetingModal = false;
+    this.resetMeetingForm();
+  }
+
+  createMeeting() {
+    if (!this.newMeeting.title || !this.newMeeting.date) {
+      alert('Veuillez remplir les champs obligatoires');
+      return;
+    }
+
+    this.loading = true;
+    
+    const meetingData = {
+      title: this.newMeeting.title,
+      description: this.newMeeting.title, // Utiliser le titre comme description par défaut
+      date_time: new Date(this.newMeeting.date).toISOString(),
+      duration: this.newMeeting.duration,
+      location: this.newMeeting.location,
+      type: this.newMeeting.type,
+      status: 'upcoming' as const,
+      participants: this.newMeeting.participants || 1,
+      agenda: this.newMeeting.agenda || [],
+      notes: this.newMeeting.notes || ''
+    };
+
+    // Créer la réunion via l'API
+    this.managerAuthService.createMeeting(meetingData).subscribe({
+      next: (response: any) => {
+        console.log('Réunion créée avec succès:', response);
+        
+        // Ajouter la réunion à la liste locale
+        const newMeeting = {
+          id: response.data?.id || response.id,
+          ...meetingData,
+          date: meetingData.date_time,
+          color: meetingData.type === 'team' ? '#10B981' : meetingData.type === 'client' ? '#3B82F6' : meetingData.type === 'technical' ? '#F59E0B' : '#8B5CF6',
+          status: 'upcoming'
+        };
+        
+        this.meetings.push(newMeeting);
+        this.upcomingMeetings = this.meetings.filter(m => m.status === 'upcoming' || m.status === 'scheduled');
+        
+        this.loading = false;
+        this.closeCreateMeetingModal();
+        
+        alert('Réunion créée avec succès !');
+      },
+      error: (error: any) => {
+        console.error('Erreur lors de la création de la réunion:', error);
+        this.loading = false;
+        alert('Erreur lors de la création de la réunion');
+      }
+    });
+  }
+
+  viewMeeting(meeting: any) {
+    this.selectedMeeting = meeting;
+    this.openViewMeetingModal();
+  }
+
+  editMeeting(meeting: any) {
+    this.meetingToEdit = { ...meeting };
+    this.openEditMeetingModal();
+  }
+
+  updateMeeting() {
+    if (!this.meetingToEdit.title || !this.meetingToEdit.date) {
+      alert('Veuillez remplir les champs obligatoires');
+      return;
+    }
+
+    this.loading = true;
+    
+    const meetingData = {
+      title: this.meetingToEdit.title,
+      description: this.meetingToEdit.title,
+      date_time: new Date(this.meetingToEdit.date).toISOString(),
+      duration: this.meetingToEdit.duration,
+      location: this.meetingToEdit.location,
+      type: this.meetingToEdit.type,
+      participants: this.meetingToEdit.participants || 1,
+      agenda: this.meetingToEdit.agenda || [],
+      notes: this.meetingToEdit.notes || ''
+    };
+
+    // Mettre à jour la réunion via l'API
+    this.managerAuthService.updateMeeting(this.meetingToEdit.id, meetingData).subscribe({
+      next: (response: any) => {
+        console.log('Réunion mise à jour avec succès:', response);
+        
+        // Mettre à jour la réunion dans la liste locale
+        const index = this.meetings.findIndex(m => m.id === this.meetingToEdit.id);
+        if (index !== -1) {
+          this.meetings[index] = {
+            ...this.meetings[index],
+            ...meetingData,
+            date: meetingData.date_time,
+            color: meetingData.type === 'team' ? '#10B981' : meetingData.type === 'client' ? '#3B82F6' : meetingData.type === 'technical' ? '#F59E0B' : '#8B5CF6'
+          };
+        }
+        
+        // Mettre à jour les réunions à venir
+        this.upcomingMeetings = this.meetings.filter(m => m.status === 'upcoming' || m.status === 'scheduled');
+        
+        this.loading = false;
+        this.closeEditMeetingModal();
+        
+        alert('Réunion mise à jour avec succès !');
+      },
+      error: (error: any) => {
+        console.error('Erreur lors de la mise à jour de la réunion:', error);
+        this.loading = false;
+        alert('Erreur lors de la mise à jour de la réunion');
+      }
+    });
+  }
+
+  deleteMeeting(meetingId: number) {
+    if (confirm('Êtes-vous sûr de vouloir supprimer cette réunion ?')) {
+      // Supprimer la réunion via l'API
+      this.managerAuthService.deleteMeeting(meetingId).subscribe({
+        next: (response: any) => {
+          console.log('Réunion supprimée avec succès:', response);
+          
+          // Supprimer la réunion de la liste locale
+          this.meetings = this.meetings.filter(m => m.id !== meetingId);
+          this.upcomingMeetings = this.meetings.filter(m => m.status === 'upcoming' || m.status === 'scheduled');
+          
+          alert('Réunion supprimée avec succès !');
+        },
+        error: (error: any) => {
+          console.error('Erreur lors de la suppression de la réunion:', error);
+          alert('Erreur lors de la suppression de la réunion');
+        }
+      });
+    }
+  }
+
+  getMeetingParticipants(meeting: any): any[] {
+    // Générer des participants fictifs pour l'affichage
+    const colors = ['#10B981', '#3B82F6', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899'];
+    return Array.from({length: meeting.participants || 3}, (_, i) => ({
+      name: `Participant ${i + 1}`,
+      initials: `P${i + 1}`,
+      color: colors[i % colors.length]
+    }));
+  }
+
+  resetMeetingForm() {
+    this.newMeeting = {
+      title: '',
+      date: '',
+      duration: '1h',
+      location: 'Salle A',
+      type: 'team',
+      agenda: [],
+      participants: [],
+      notes: ''
+    };
+  }
+
+  getMeetingTypeLabel(type: string): string {
+    const labels = {
+      'team': 'Équipe',
+      'client': 'Client',
+      'technical': 'Technique',
+      'review': 'Revue'
+    };
+    return labels[type as keyof typeof labels] || type;
+  }
+
+  getMeetingTypeColor(type: string): string {
+    const colors = {
+      'team': '#10B981',
+      'client': '#3B82F6',
+      'technical': '#F59E0B',
+      'review': '#8B5CF6'
+    };
+    return colors[type as keyof typeof colors] || '#6B7280';
   }
 }
