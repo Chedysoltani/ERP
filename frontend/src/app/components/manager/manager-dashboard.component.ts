@@ -40,6 +40,7 @@ interface Task {
   status: string;
   tags: string[];
   submittedAt?: string;
+  completedDate?: string;
 }
 
 @Component({
@@ -132,35 +133,7 @@ export class ManagerDashboardComponent implements OnInit {
     // Charger les réunions depuis la base de données
     this.loadMeetingsFromDatabase();
     
-    // Calculer les statistiques
-    this.calculateStats();
-    
-    // Ajouter les propriétés manquantes
-    this.meetings = this.meetings.map((m: any) => ({
-      ...m,
-      color: m.type === 'team' ? '#10B981' : m.type === 'client' ? '#3B82F6' : '#F59E0B'
-    }));
-    
-    this.documents = this.documents.map((d: any) => ({
-      ...d,
-      title: d.name
-    }));
-    
-    // Initialiser les tâches avec les propriétés manquantes
-    this.tasks = this.baseTasks.map((t: any) => ({
-      ...t,
-      submittedAt: new Date().toISOString()
-    }));
-    
-    this.inProgressTasks = this.inProgressTasks.map((t: any) => ({
-      ...t,
-      submittedAt: new Date().toISOString()
-    }));
-    
-    this.doneTasks = this.doneTasks.map((t: any) => ({
-      ...t,
-      completedDate: t.completedDate || new Date().toISOString()
-    }));
+    // Les données seront chargées depuis la base de données via les méthodes appelées ci-dessus
   }
 
   loadProjectsFromDatabase() {
@@ -349,8 +322,8 @@ export class ManagerDashboardComponent implements OnInit {
         
         if (tasks.length === 0) {
           console.log(`Aucune tâche ${status} trouvée dans la base de données`);
-          // Utiliser les données mockées si aucune tâche trouvée
-          this.loadMockTasksForStatus(status);
+          // Laisser le tableau vide - pas de données mockées
+          console.log(`Tableau ${status} laissé vide`);
           return;
         }
         
@@ -403,45 +376,12 @@ export class ManagerDashboardComponent implements OnInit {
       },
       error: (error: any) => {
         console.error(`Erreur lors du chargement des tâches ${status}:`, error);
-        // En cas d'erreur, utiliser les données mockées
-        this.loadMockTasksForStatus(status);
+        // En cas d'erreur, laisser le tableau vide pour ne pas utiliser de données mockées
+        console.log(`Aucune tâche ${status} chargée - tableau laissé vide`);
       }
     });
   }
-  loadMockTasksForStatus(status: string) {
-    console.log(`Chargement des tâches mockées pour le statut: ${status}`);
-    
-    // Filtrer les tâches mockées par statut
-    const mockTasksForStatus = this.baseTasks.filter(task => task.status === status);
-    
-    // Ajouter les tâches mockées au tableau principal
-    if (!this.tasks) {
-      this.tasks = [];
-    }
-    
-    mockTasksForStatus.forEach((mockTask: Task) => {
-      const existingIndex = this.tasks.findIndex(t => t.id === mockTask.id);
-      if (existingIndex === -1) {
-        this.tasks.push(mockTask);
-      }
-    });
-    
-    switch(status) {
-      case 'todo':
-        this.todoTasks = mockTasksForStatus;
-        break;
-      case 'in_progress':
-        this.inProgressTasks = mockTasksForStatus;
-        break;
-      case 'done':
-        // Conserver la structure originale de doneTasks avec completedDate
-        // this.doneTasks reste inchangé (structure différente)
-        break;
-    }
-    
-    console.log(`Tâches mockées ${status} ajoutées:`, mockTasksForStatus.length);
-    console.log('Total des tâches après ajout mockées:', this.tasks.length);
-  }
+  // La méthode loadMockTasksForStatus a été supprimée pour n'utiliser que des données réelles
 
   getAvatarColor(userId: number): string {
     const colors = ['purple', 'teal', 'amber', 'rose', 'blue', 'green'];
@@ -459,361 +399,39 @@ export class ManagerDashboardComponent implements OnInit {
     budget: 0
   };
 
-  // Données pour le dashboard
+  // Données pour le dashboard - initialisées dynamiquement
   globalStats = {
-    totalEmployees: 156,
-    activeProjects: 24,
-    completedTasks: 892,
-    pendingApprovals: 47
+    totalEmployees: 0,
+    activeProjects: 0,
+    completedTasks: 0,
+    pendingApprovals: 0
   };
 
-  recentProjects: DisplayProject[] = [
-    {
-      id: 1,
-      name: 'Formation Angular Avancé',
-      progress: 75,
-      team: 8,
-      deadline: '2024-03-25',
-      status: 'active',
-      description: 'Formation interne sur Angular avancé'
-    },
-    {
-      id: 2,
-      name: 'Migration Cloud Infrastructure',
-      progress: 45,
-      team: 12,
-      deadline: '2024-04-15',
-      status: 'active',
-      description: 'Migration de l\'infrastructure vers le cloud'
-    },
-    {
-      id: 3,
-      name: 'E-learning Platform V2',
-      progress: 90,
-      team: 6,
-      deadline: '2024-03-20',
-      status: 'active',
-      description: 'Refonte complète de la plateforme e-learning'
-    }
-  ];
+  recentProjects: DisplayProject[] = [];
 
-  baseTasks = [
-    {
-      id: 1,
-      title: 'Dashboard design review',
-      description: 'Revoir l\'interface du dashboard',
-      priority: 'high',
-      assignee: 'Jean Dupont',
-      assigneeInitials: 'JD',
-      avatarColor: 'purple',
-      dueDate: '17 Mars',
-      progress: 85,
-      status: 'in_progress',
-      tags: ['design', 'review']
-    },
-    {
-      id: 2,
-      title: 'API endpoints',
-      description: 'Créer les routes RESTful',
-      priority: 'high',
-      assignee: 'Marie Martin',
-      assigneeInitials: 'MM',
-      avatarColor: 'teal',
-      dueDate: '18 Mars',
-      progress: 70,
-      status: 'in_progress',
-      tags: ['backend', 'api']
-    },
-    {
-      id: 3,
-      title: 'Database schema',
-      description: 'Définir les schéma de la base de données',
-      priority: 'medium',
-      assignee: 'Pierre Durand',
-      assigneeInitials: 'PD',
-      avatarColor: 'amber',
-      dueDate: '19 Mars',
-      progress: 60,
-      status: 'todo',
-      tags: ['database', 'schema']
-    },
-    {
-      id: 4,
-      title: 'UI components',
-      description: 'Créer les composants réutilisables',
-      priority: 'medium',
-      assignee: 'Sophie Lefebvre',
-      assigneeInitials: 'SL',
-      avatarColor: 'rose',
-      dueDate: '20 Mars',
-      progress: 45,
-      status: 'todo',
-      tags: ['frontend', 'components']
-    },
-    {
-      id: 5,
-      title: 'Testing',
-      description: 'Écrire les tests unitaires',
-      priority: 'low',
-      assignee: 'Thomas Bernard',
-      assigneeInitials: 'TB',
-      avatarColor: 'blue',
-      dueDate: '21 Mars',
-      progress: 30,
-      status: 'todo',
-      tags: ['testing', 'qa']
-    },
-    {
-      id: 6,
-      title: 'Documentation',
-      description: 'Rédiger la documentation technique',
-      priority: 'low',
-      assignee: 'Claude Moreau',
-      assigneeInitials: 'CM',
-      avatarColor: 'green',
-      dueDate: '22 Mars',
-      progress: 90,
-      status: 'done',
-      tags: ['docs', 'technical']
-    }
-  ];
+  // Les tâches seront chargées depuis la base de données
+  baseTasks: Task[] = [];
 
+  // Les tableaux de tâches seront initialisés dynamiquement
   tasks: Task[] = [];
+  todoTasks: Task[] = [];
+  inProgressTasks: Task[] = [];
+  doneTasks: Task[] = [];
+  pendingTasks: Task[] = [];
 
-  inProgressTasks = [
-    {
-      id: 5,
-      title: 'Refactor dashboard manager',
-      description: 'Améliorer l\'architecture du dashboard',
-      priority: 'high',
-      assignee: 'Jean Dupont',
-      assigneeInitials: 'JD',
-      avatarColor: 'purple',
-      dueDate: '18 Mars',
-      progress: 65,
-      tags: ['frontend', 'refactoring']
-    },
-    {
-      id: 6,
-      title: 'Implémenter authentification',
-      description: 'Ajouter JWT et refresh tokens',
-      priority: 'high',
-      assignee: 'Marie Martin',
-      assigneeInitials: 'MM',
-      avatarColor: 'teal',
-      dueDate: '19 Mars',
-      progress: 40,
-      tags: ['security', 'backend']
-    },
-    {
-      id: 7,
-      title: 'Design system',
-      description: 'Créer des composants réutilisables',
-      priority: 'medium',
-      assignee: 'Sophie Laurent',
-      assigneeInitials: 'SL',
-      avatarColor: 'rose',
-      dueDate: '21 Mars',
-      progress: 80,
-      tags: ['design', 'frontend']
-    }
-  ];
+  // Les utilisateurs seront chargés depuis la base de données
+  users: any[] = [];
+  allUsers: any[] = [];
+  managersCount = 0;
+  employeesCount = 0;
+  adminsCount = 0;
 
-  doneTasks = [
-    {
-      id: 8,
-      title: 'Setup projet initial',
-      description: 'Configuration Angular et Node.js',
-      priority: 'high',
-      assignee: 'Jean Dupont',
-      assigneeInitials: 'JD',
-      avatarColor: 'purple',
-      completedDate: '15 Mars',
-      tags: ['setup', 'infrastructure']
-    },
-    {
-      id: 9,
-      title: 'Base de données',
-      description: 'Création des tables et relations',
-      priority: 'high',
-      assignee: 'Pierre Bernard',
-      assigneeInitials: 'PB',
-      avatarColor: 'amber',
-      completedDate: '14 Mars',
-      tags: ['database', 'mysql']
-    },
-    {
-      id: 10,
-      title: 'CI/CD Pipeline',
-      description: 'Configuration GitHub Actions',
-      priority: 'medium',
-      assignee: 'Marie Martin',
-      assigneeInitials: 'MM',
-      avatarColor: 'teal',
-      completedDate: '16 Mars',
-      tags: ['devops', 'automation']
-    },
-    {
-      id: 11,
-      title: 'UI/UX Research',
-      description: 'Analyse des besoins utilisateurs',
-      priority: 'medium',
-      assignee: 'Sophie Laurent',
-      assigneeInitials: 'SL',
-      avatarColor: 'rose',
-      completedDate: '13 Mars',
-      tags: ['research', 'ux']
-    },
-    {
-      id: 12,
-      title: 'Architecture review',
-      description: 'Validation de l\'architecture technique',
-      priority: 'low',
-      assignee: 'Jean Dupont',
-      assigneeInitials: 'JD',
-      avatarColor: 'purple',
-      completedDate: '12 Mars',
-      tags: ['architecture', 'planning']
-    }
-  ];
+  // Les réunions seront chargées depuis la base de données
+  meetings: any[] = [];
+  upcomingMeetings: any[] = [];
 
-  users = [
-    {
-      id: 1,
-      nom: 'Dupont',
-      prenom: 'Jean',
-      email: 'jean.dupont@sit.com',
-      role: 'manager',
-      telephone: '06 12 34 56 78',
-      avatarColor: 'purple',
-      status: 'active',
-      date_creation: '2024-01-15T10:00:00Z',
-      last_login: '2024-03-23T14:30:00Z'
-    },
-    {
-      id: 2,
-      nom: 'Martin',
-      prenom: 'Marie',
-      email: 'marie.martin@sit.com',
-      role: 'manager',
-      telephone: '06 23 45 67 89',
-      avatarColor: 'teal',
-      status: 'active',
-      date_creation: '2024-01-20T09:00:00Z',
-      last_login: '2024-03-23T15:45:00Z'
-    },
-    {
-      id: 3,
-      nom: 'Bernard',
-      prenom: 'Pierre',
-      email: 'pierre.bernard@sit.com',
-      role: 'manager',
-      telephone: '06 34 56 78 90',
-      avatarColor: 'amber',
-      status: 'active',
-      date_creation: '2024-01-22T11:00:00Z',
-      last_login: '2024-03-23T16:20:00Z'
-    }
-  ];
-
-  meetings: any[] = [
-    {
-      id: 1,
-      title: 'Réunion d\'équipe',
-      date: '2024-03-25T10:00:00Z',
-      duration: '1h',
-      location: 'Salle A',
-      participants: 8,
-      type: 'team',
-      agenda: [
-        'Revue des projets en cours',
-        'Point sur les blocages',
-        'Questions et discussion libre'
-      ],
-      status: 'upcoming',
-      notes: 'Préparer les rapports d\'avancement'
-    },
-    {
-      id: 2,
-      title: 'Reunion avec le client',
-      date: '2024-03-26T14:00:00Z',
-      duration: '2h',
-      location: 'Visioconférence',
-      participants: 4,
-      type: 'client',
-      agenda: [
-        'Démonstration de la v2',
-        'Feedback et retours client',
-        'Prochaines étapes'
-      ],
-      status: 'scheduled',
-      notes: 'Préparer la démo'
-    },
-    {
-      id: 3,
-      title: 'Point technique',
-      date: '2024-03-27T16:00:00Z',
-      duration: '30min',
-      location: 'Visioconférence',
-      participants: 2,
-      type: 'technical',
-      agenda: [
-        'Architecture review',
-        'Performance optimisation',
-        'Décisions techniques'
-      ],
-      status: 'pending',
-      notes: 'Revoir les performances'
-    }
-  ];
-
-  documents: any[] = [
-    {
-      id: 1,
-      name: 'Cahier des exigences',
-      type: 'pdf',
-      size: '2.4 MB',
-      modified: '2024-03-23',
-      modifiedBy: 'Jean Dupont',
-      tags: ['specification', 'requirements']
-    },
-    {
-      id: 2,
-      name: 'API Documentation',
-      type: 'markdown',
-      size: '1.1 MB',
-      modified: '2024-03-23',
-      modifiedBy: 'Marie Martin',
-      tags: ['api', 'documentation']
-    },
-    {
-      id: 3,
-      name: 'Guide d\'installation',
-      type: 'pdf',
-      size: '856 KB',
-      modified: '2024-03-23',
-      modifiedBy: 'Pierre Bernard',
-      tags: ['guide', 'setup']
-    },
-    {
-      id: 4,
-      name: 'Rapport mensuel Mars',
-      type: 'xlsx',
-      size: '4.2 MB',
-      modified: '2024-03-23',
-      modifiedBy: 'Jean Dupont',
-      tags: ['rapport', 'mensuel']
-    },
-    {
-      id: 5,
-      name: 'Présentation projet',
-      type: 'pptx',
-      size: '3.8 MB',
-      modified: '2024-03-23',
-      modifiedBy: 'Sophie Laurent',
-      tags: ['présentation', 'demo']
-    }
-  ];
+  // Les documents seront chargés depuis la base de données
+  documents: any[] = [];
 
   constructor(
     private managerAuthService: ManagerAuthService,
@@ -1420,33 +1038,11 @@ export class ManagerDashboardComponent implements OnInit {
   totalHours = 0;
   avgHoursPerDay = 0;
   workedDays = 0;
-  upcomingMeetings: any[] = [];
   weekDays = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
   calendarDays: CalendarDay[] = [];
   
-  // Propriétés manquantes
-  pendingTasks = this.tasks;
-  todoTasks = this.tasks;
-  allUsers = this.users.map(u => ({
-    ...u,
-    name: `${u.prenom} ${u.nom}`,
-    initials: `${u.prenom[0]}${u.nom[0]}`,
-    phone: u.telephone,
-    createdAt: u.date_creation,
-    active: u.status === 'active',
-    completedTasks: Math.floor(Math.random() * 10),
-    ongoingTasks: Math.floor(Math.random() * 5)
-  }));
-  managersCount = this.users.filter(u => u.role === 'manager').length;
-  employeesCount = this.users.filter(u => u.role === 'employee').length;
-  adminsCount = this.users.filter(u => u.role === 'admin').length;
-  teamPerformance = this.users.map(u => ({
-    ...u,
-    efficiency: 85,
-    name: `${u.prenom} ${u.nom}`,
-    completedTasks: Math.floor(Math.random() * 10),
-    ongoingTasks: Math.floor(Math.random() * 5)
-  }));
+  // Propriétés pour la performance d'équipe
+  teamPerformance: any[] = [];
 
   // Méthodes pour calculer les statistiques
   calculateStats() {
@@ -1491,11 +1087,33 @@ export class ManagerDashboardComponent implements OnInit {
     this.employeesCount = this.allUsers.filter(u => u.role === 'employee').length;
     this.adminsCount = this.allUsers.filter(u => u.role === 'admin').length;
     
+    // Calculer la performance de l'équipe avec des données réelles
+    this.teamPerformance = this.allUsers.map(user => {
+      const userTasks = this.tasks.filter(task => task.assignee === `${user.prenom} ${user.nom}`);
+      const completedTasks = userTasks.filter(task => task.status === 'done').length;
+      const ongoingTasks = userTasks.filter(task => task.status === 'in_progress').length;
+      const totalTasks = userTasks.length;
+      
+      // Calculer l'efficacité basée sur les tâches complétées
+      const efficiency = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
+      
+      return {
+        id: user.id,
+        name: `${user.prenom} ${user.nom}`,
+        completedTasks: completedTasks,
+        ongoingTasks: ongoingTasks,
+        efficiency: efficiency,
+        avatarColor: user.avatarColor
+      };
+    });
+    
     console.log('Répartition par rôle:', {
       managers: this.managersCount,
       employees: this.employeesCount,
       admins: this.adminsCount
     });
+    
+    console.log('Performance de l\'équipe:', this.teamPerformance);
     
     // Synchroniser le calendrier avec les réunions réelles
     this.syncCalendarWithMeetings();
