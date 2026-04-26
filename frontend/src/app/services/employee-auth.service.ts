@@ -1,7 +1,9 @@
 import { Injectable } from '@angular/core';
 import { Router } from '@angular/router';
-import { BehaviorSubject, Observable, of } from 'rxjs';
-import { map, delay } from 'rxjs/operators';
+import { HttpClient } from '@angular/common/http';
+import { BehaviorSubject, Observable, of, throwError } from 'rxjs';
+import { map, delay, catchError } from 'rxjs/operators';
+import { environment } from '../../environments/environment';
 
 export interface Employee {
   id: number;
@@ -22,7 +24,10 @@ export class EmployeeAuthService {
   private currentEmployeeSubject: BehaviorSubject<Employee | null>;
   public currentEmployee: Observable<Employee | null>;
 
-  constructor(private router: Router) {
+  constructor(
+    private router: Router,
+    private http: HttpClient
+  ) {
     // Ne pas charger automatiquement depuis localStorage pour éviter la redirection
     this.currentEmployeeSubject = new BehaviorSubject<Employee | null>(null);
     this.currentEmployee = this.currentEmployeeSubject.asObservable();
@@ -37,27 +42,32 @@ export class EmployeeAuthService {
   }
 
   login(email: string, password: string): Observable<Employee> {
-    // Simulation de login pour tester
-    if (email && password) {
-      const mockEmployee: Employee = {
-        id: 2,
-        nom: 'Employé',
-        prenom: 'Test',
-        email: email,
-        role: 'employee',
-        telephone: '0123456789',
-        date_creation: new Date().toISOString(),
-        manager_id: 1,
-        token: 'employee-token-' + Date.now()
-      };
-      
-      localStorage.setItem('currentEmployee', JSON.stringify(mockEmployee));
-      this.currentEmployeeSubject.next(mockEmployee);
-      
-      return of(mockEmployee).pipe(delay(500));
-    }
-
-    throw new Error('Email ou mot de passe incorrect');
+    return this.http.post<any>(`${environment.apiUrl}/users/login`, { email, password })
+      .pipe(
+        map(response => {
+          // Vérifier si l'utilisateur est un employé
+          if (response.success && response.data && response.data.role === 'employee') {
+            // Créer un token simple pour la session
+            const employee: Employee = {
+              ...response.data,
+              manager_id: 1, // Par défaut, tous les employés sont sous le manager principal
+              token: 'employee-token-' + Date.now() + '-' + response.data.id
+            };
+            localStorage.setItem('currentEmployee', JSON.stringify(employee));
+            this.currentEmployeeSubject.next(employee);
+            console.log('Employé authentifié:', employee);
+            return employee;
+          } else if (response.success && response.data && response.data.role !== 'employee') {
+            throw new Error('Accès réservé aux employés. Votre rôle est: ' + response.data.role);
+          } else {
+            throw new Error('Email ou mot de passe incorrect');
+          }
+        }),
+        catchError(error => {
+          console.error('Erreur de login employé:', error);
+          throw error;
+        })
+      );
   }
 
   logout(): void {

