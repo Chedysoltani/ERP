@@ -1,0 +1,253 @@
+<div class="project-simulator-container">
+  <!-- En-tête -->
+  <div class="simulator-header">
+    <h2 class="page-title">
+      <i class="bi bi-cpu"></i>
+      Simulateur de Gestion de Projet IA
+    </h2>
+    <p class="page-description">
+      Configurez votre projet et l'IA générera automatiquement un planning optimal avec répartition des tâches
+    </p>
+  </div>
+
+  <!-- Formulaire de configuration -->
+  <div class="project-form-container">
+    <form class="project-form" [formGroup]="projectForm">
+      <!-- Informations générales -->
+      <div class="form-section">
+        <h3>Informations du Projet</h3>
+        <div class="form-grid">
+          <div class="form-group">
+            <label>Nom du projet *</label>
+            <input type="text" formControlName="name" placeholder="Ex: Refonte site e-commerce">
+          </div>
+          <div class="form-group">
+            <label>Durée (jours) *</label>
+            <input type="number" formControlName="duration" min="1" max="365">
+          </div>
+        </div>
+        
+        <div class="form-group full-width">
+          <label>Description *</label>
+          <textarea formControlName="description" rows="3" 
+                   placeholder="Décrivez le projet en détail..."></textarea>
+        </div>
+      </div>
+
+      <!-- Objectifs -->
+      <div class="form-section">
+        <div class="section-header">
+          <h3>Objectifs du Projet</h3>
+          <button type="button" class="btn-primary" (click)="addObjective()">
+            <i class="bi bi-plus-circle"></i>
+            Ajouter un objectif
+          </button>
+        </div>
+        
+        <div class="objectives-container">
+          <div class="objective-item" 
+               *ngFor="let objective of objectivesArray.controls; let i = index" 
+               [formGroupName]="i">
+            <div class="objective-content">
+              <input type="text" formControlName="description" 
+                     placeholder="Ex: Lancer le site en production">
+              <button type="button" class="btn-remove" (click)="removeObjective(i)" 
+                      *ngIf="objectivesArray.length > 1">
+                <i class="bi bi-trash"></i>
+              </button>
+            </div>
+          </div>
+        </div>
+        
+        <div class="no-objectives" *ngIf="objectivesArray.length === 0">
+          <i class="bi bi-info-circle"></i>
+          Ajoutez au moins un objectif pour le projet
+        </div>
+      </div>
+
+      <!-- Employés disponibles -->
+      <div class="form-section">
+        <h3>Équipe Disponible</h3>
+        <div class="employees-grid">
+          <div class="employee-card" 
+               *ngFor="let employee of availableEmployees"
+               [class.selected]="isEmployeeSelected(employee.id)"
+               (click)="toggleEmployeeSelection(employee.id)">
+            <div class="employee-avatar">
+              <i class="bi bi-person-circle"></i>
+            </div>
+            <div class="employee-info">
+              <div class="employee-name">{{ employee.name }}</div>
+              <div class="employee-role">{{ employee.role }}</div>
+            </div>
+            <div class="employee-checkbox">
+              <i class="bi bi-check-circle" *ngIf="isEmployeeSelected(employee.id)"></i>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tâches du projet -->
+      <div class="form-section">
+        <div class="section-header">
+          <h3>Tâches du Projet</h3>
+          <button type="button" class="btn-primary" (click)="addTask()">
+            <i class="bi bi-plus-circle"></i>
+            Ajouter une tâche
+          </button>
+        </div>
+        
+        <div class="tasks-container">
+          <div class="task-item" 
+               *ngFor="let task of tasksArray.controls; let taskIndex = index" 
+               [formGroupName]="taskIndex">
+            <div class="task-header">
+              <div class="task-info">
+                <input type="text" formControlName="title" 
+                       placeholder="Titre de la tâche" class="task-title">
+                <select formControlName="priority" class="task-priority">
+                  <option value="low">Faible</option>
+                  <option value="medium">Moyenne</option>
+                  <option value="high">Élevée</option>
+                </select>
+              </div>
+              <div class="task-actions">
+                <input type="number" formControlName="estimatedHours" 
+                       min="1" max="200" class="task-hours"
+                       placeholder="Heures">
+                <button type="button" class="btn-remove" (click)="removeTask(taskIndex)" 
+                        *ngIf="tasksArray.length > 1">
+                  <i class="bi bi-trash"></i>
+                </button>
+              </div>
+            </div>
+            
+            <div class="task-description">
+              <textarea formControlName="description" rows="2" 
+                       placeholder="Description de la tâche..."></textarea>
+            </div>
+            
+            <!-- Compétences requises pour la tâche -->
+            <div class="task-requirements">
+              <div class="requirements-header">
+                <h5>Compétences requises</h5>
+                <button type="button" class="btn-small" 
+                        (click)="addTaskRequirement(taskIndex)">
+                  <i class="bi bi-plus"></i>
+                </button>
+              </div>
+              
+              <div class="requirements-list">
+                <div class="requirement-item" 
+                     *ngFor="let requirement of getTaskRequirements(taskIndex).controls; let reqIndex = index" 
+                     [formGroupName]="reqIndex">
+                  <select formControlName="skillName" class="skill-select">
+                    <option value="">Compétence</option>
+                    <option *ngFor="let skill of availableSkills" [value]="skill">
+                      {{ skill }}
+                    </option>
+                  </select>
+                  <input type="range" formControlName="requiredLevel" min="1" max="5" class="level-range">
+                  <select formControlName="importance" class="importance-select">
+                    <option value="low">Faible</option>
+                    <option value="medium">Moyenne</option>
+                    <option value="high">Élevée</option>
+                    <option value="critical">Critique</option>
+                  </select>
+                  <button type="button" class="btn-remove-small" 
+                          (click)="removeTaskRequirement(taskIndex, reqIndex)">
+                    <i class="bi bi-x"></i>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <div class="no-tasks" *ngIf="tasksArray.length === 0">
+          <i class="bi bi-info-circle"></i>
+          Ajoutez au moins une tâche pour le projet
+        </div>
+      </div>
+
+      <!-- Actions -->
+      <div class="form-actions">
+        <button type="button" class="btn-secondary" (click)="resetForm()">
+          <i class="bi bi-arrow-clockwise"></i>
+          Réinitialiser
+        </button>
+        <button type="button" class="btn-primary" (click)="simulateProject()" 
+                [disabled]="loading || tasksArray.length === 0">
+          <i class="bi bi-play-circle"></i>
+          {{ loading ? 'Simulation en cours...' : 'Lancer la simulation IA' }}
+        </button>
+      </div>
+    </form>
+  </div>
+
+  <!-- Loading -->
+  <div class="loading-container" *ngIf="loading">
+    <div class="loading-spinner">
+      <i class="bi bi-cpu"></i>
+      <p>L'IA analyse et génère le planning optimal...</p>
+    </div>
+  </div>
+
+  <!-- Résultats de la simulation -->
+  <div class="simulation-results" *ngIf="showResults && !loading">
+    <div class="results-header">
+      <h3>Résultats de la Simulation</h3>
+      <div class="risk-indicator" 
+           [style.background-color]="getRiskLevelColor(simulationResult.riskLevel)">
+        <i class="bi bi-shield-exclamation"></i>
+        Risque: {{ getRiskLevelLabel(simulationResult.riskLevel) }}
+      </div>
+    </div>
+
+    <!-- Résumé -->
+    <div class="results-summary">
+      <div class="summary-card">
+        <h4>📅 Planning Généré</h4>
+        <p>Date de fin estimée: <strong>{{ formatDate(simulationResult.estimatedCompletion) }}</strong></p>
+      </div>
+      <div class="summary-card">
+        <h4>👥 Affectations</h4>
+        <p><strong>{{ simulationResult.taskAssignments?.length || 0 }}</strong> tâches assignées</p>
+      </div>
+    </div>
+
+    <!-- Timeline -->
+    <div class="timeline-section">
+      <h4>Timeline du Projet</h4>
+      <div class="timeline-container">
+        <div class="timeline-item" 
+             *ngFor="let item of simulationResult.timeline">
+          <div class="timeline-date">
+            <div class="date-start">{{ formatDate(item.startDate) }}</div>
+            <div class="date-end">{{ formatDate(item.endDate) }}</div>
+          </div>
+          <div class="timeline-content">
+            <h5>{{ item.taskTitle }}</h5>
+            <p>Durée: {{ item.duration }} jours</p>
+            <span class="priority-badge" 
+                  [style.background-color]="getPriorityColor(item.priority)">
+              {{ item.priority }}
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Recommandations -->
+    <div class="recommendations-section" *ngIf="simulationResult.recommendations?.length > 0">
+      <h4>💡 Recommandations IA</h4>
+      <div class="recommendations-list">
+        <div class="recommendation-item" 
+             *ngFor="let recommendation of simulationResult.recommendations">
+          <i class="bi bi-lightbulb"></i>
+          <span>{{ recommendation }}</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

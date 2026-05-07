@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule, ReactiveFormsModule } from '@angular/forms';
 import { RouterModule } from '@angular/router';
 import { EmployeeDashboardComponent } from './employee-dashboard.component';
+import { SkillsProfileComponent } from './skills-profile.component';
 
 const routes = [
   { path: '', component: EmployeeDashboardComponent }
@@ -10,7 +11,8 @@ const routes = [
 
 @NgModule({
   declarations: [
-    EmployeeDashboardComponent
+    EmployeeDashboardComponent,
+    SkillsProfileComponent
   ],
   imports: [
     CommonModule,

@@ -1,0 +1,227 @@
+<div class="task-recommendation-container">
+  <!-- En-tête -->
+  <div class="recommendation-header">
+    <h2 class="page-title">
+      <i class="bi bi-robot"></i>
+      Recommandation IA d'Affectation de Tâches
+    </h2>
+    <p class="page-description">
+      Créez une tâche et l'IA vous recommandera les employés les plus adaptés selon leurs compétences
+    </p>
+  </div>
+
+  <!-- Formulaire de création de tâche -->
+  <div class="task-form-container">
+    <form class="task-form" [formGroup]="taskForm">
+      <div class="form-section">
+        <h3>Informations de la Tâche</h3>
+        <div class="form-grid">
+          <div class="form-group">
+            <label>Titre de la tâche *</label>
+            <input type="text" formControlName="title" placeholder="Ex: Développer le module d'authentification">
+          </div>
+          <div class="form-group">
+            <label>Heures estimées *</label>
+            <input type="number" formControlName="estimatedHours" min="1" max="200">
+          </div>
+          <div class="form-group">
+            <label>Priorité *</label>
+            <select formControlName="priority">
+              <option value="low">Faible</option>
+              <option value="medium">Moyenne</option>
+              <option value="high">Élevée</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Date limite *</label>
+            <input type="date" formControlName="deadline">
+          </div>
+        </div>
+        
+        <div class="form-group full-width">
+          <label>Description *</label>
+          <textarea formControlName="description" rows="3" 
+                   placeholder="Décrivez la tâche en détail..."></textarea>
+        </div>
+      </div>
+
+      <div class="form-section">
+        <div class="section-header">
+          <h3>Compétences Requises</h3>
+          <button type="button" class="btn-primary" (click)="addRequirement()">
+            <i class="bi bi-plus-circle"></i>
+            Ajouter une compétence
+          </button>
+        </div>
+        
+        <div class="requirements-container">
+          <div class="requirement-item" 
+               *ngFor="let requirement of requirementsArray.controls; let i = index" 
+               [formGroupName]="i">
+            <div class="requirement-content">
+              <div class="requirement-fields">
+                <div class="form-group">
+                  <label>Compétence *</label>
+                  <select formControlName="skillName">
+                    <option value="">Sélectionner une compétence</option>
+                    <option *ngFor="let skill of availableSkills" [value]="skill">
+                      {{ skill }}
+                    </option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label>Niveau requis (1-5) *</label>
+                  <input type="range" formControlName="requiredLevel" min="1" max="5">
+                  <span class="level-display">{{ getLevelLabel(requirement.value.requiredLevel) }}</span>
+                </div>
+                <div class="form-group">
+                  <label>Importance *</label>
+                  <select formControlName="importance">
+                    <option value="low">Faible</option>
+                    <option value="medium">Moyenne</option>
+                    <option value="high">Élevée</option>
+                    <option value="critical">Critique</option>
+                  </select>
+                </div>
+              </div>
+              <button type="button" class="btn-remove" (click)="removeRequirement(i)" 
+                      *ngIf="requirementsArray.length > 1">
+                <i class="bi bi-trash"></i>
+              </button>
+            </div>
+            <div class="importance-indicator" 
+                 [style.background-color]="getImportanceColor(requirement.value.importance)">
+              {{ getImportanceLabel(requirement.value.importance) }}
+            </div>
+          </div>
+        </div>
+        
+        <div class="no-requirements" *ngIf="requirementsArray.length === 0">
+          <i class="bi bi-info-circle"></i>
+          Ajoutez au moins une compétence requise pour obtenir des recommandations
+        </div>
+      </div>
+
+      <div class="form-actions">
+        <button type="button" class="btn-secondary" (click)="resetForm()">
+          <i class="bi bi-arrow-clockwise"></i>
+          Réinitialiser
+        </button>
+        <button type="button" class="btn-primary" (click)="getRecommendations()" 
+                [disabled]="loading || requirementsArray.length === 0">
+          <i class="bi bi-magic"></i>
+          {{ loading ? 'Analyse en cours...' : 'Obtenir les recommandations' }}
+        </button>
+      </div>
+    </form>
+  </div>
+
+  <!-- Loading -->
+  <div class="loading-container" *ngIf="loading">
+    <div class="loading-spinner">
+      <i class="bi bi-arrow-repeat"></i>
+      <p>L'IA analyse les profils des employés...</p>
+    </div>
+  </div>
+
+  <!-- Résultats des recommandations -->
+  <div class="recommendations-results" *ngIf="showResults && !loading">
+    <div class="results-header">
+      <h3>Recommandations d'Employés</h3>
+      <p class="results-count">{{ recommendations.length }} employé(s) trouvé(s)</p>
+    </div>
+
+    <div class="recommendations-grid">
+      <div class="recommendation-card" 
+           *ngFor="let employee of recommendations" 
+           [class.recommended]="employee.recommendation === 'highly_recommended'"
+           [class.consider]="employee.recommendation === 'consider'">
+        
+        <!-- En-tête de la carte -->
+        <div class="card-header">
+          <div class="employee-info">
+            <h4 class="employee-name">{{ employee.employeeName }}</h4>
+            <div class="match-score">
+              <span class="score-value">{{ employee.matchScore }}%</span>
+              <span class="score-label">Compatibilité</span>
+            </div>
+          </div>
+          <div class="recommendation-badge" 
+               [style.background-color]="getRecommendationColor(employee.recommendation)">
+            {{ getRecommendationLabel(employee.recommendation) }}
+          </div>
+        </div>
+
+        <!-- Détails du matching -->
+        <div class="matching-details">
+          <div class="skills-match">
+            <h5>Compétences correspondantes</h5>
+            <div class="skills-list">
+              <span class="skill-tag matched" 
+                    *ngFor="let skill of employee.matchingSkills">
+                <i class="bi bi-check-circle"></i>
+                {{ skill }}
+              </span>
+            </div>
+          </div>
+          
+          <div class="skills-missing" *ngIf="employee.missingSkills.length > 0">
+            <h5>Compétences manquantes</h5>
+            <div class="skills-list">
+              <span class="skill-tag missing" 
+                    *ngFor="let skill of employee.missingSkills">
+                <i class="bi bi-x-circle"></i>
+                {{ skill }}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Statistiques de l'employé -->
+        <div class="employee-stats">
+          <div class="stat-item">
+            <div class="stat-label">Disponibilité</div>
+            <div class="stat-value">
+              <span class="availability-bar" 
+                    [style.width.%]="employee.availability"
+                    [style.background-color]="getAvailabilityColor(employee.availability)"></span>
+              <span class="availability-text">{{ employee.availability }}%</span>
+            </div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-label">Charge de travail</div>
+            <div class="stat-value">
+              <span class="workload-bar" 
+                    [style.width.%]="employee.workload"
+                    [style.background-color]="getWorkloadColor(employee.workload)"></span>
+              <span class="workload-text">{{ employee.workload }}%</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Actions -->
+        <div class="card-actions">
+          <button class="btn-details" 
+                  (click)="getEmployeeDetails(employee.employeeId)">
+            <i class="bi bi-person"></i>
+            Voir le profil
+          </button>
+          <button class="btn-assign" 
+                  [class.disabled]="employee.recommendation === 'not_recommended'"
+                  (click)="assignTask(employee)"
+                  [disabled]="employee.recommendation === 'not_recommended'">
+            <i class="bi bi-person-plus"></i>
+            Assigner la tâche
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Message si aucune recommandation -->
+    <div class="no-recommendations" *ngIf="recommendations.length === 0">
+      <i class="bi bi-exclamation-triangle"></i>
+      <h4>Aucune recommandation trouvée</h4>
+      <p>Essayez de modifier les compétences requises ou de réduire les exigences.</p>
+    </div>
+  </div>
+</div>

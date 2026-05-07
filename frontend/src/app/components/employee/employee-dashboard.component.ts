@@ -3,7 +3,7 @@ import { Router } from '@angular/router';
 import { ManagerAuthService, Employee } from '../../services/manager-auth.service';
 import { EmployeeService } from '../../services/employee.service';
 
-export type SectionId = 'dashboard' | 'taches' | 'timesheet' | 'reunions' | 'documents';
+export type SectionId = 'dashboard' | 'taches' | 'timesheet' | 'reunions' | 'documents' | 'competences';
 
 interface DisplayTask {
   id: number;

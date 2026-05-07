@@ -1,0 +1,328 @@
+<div class="skills-profile-container">
+  <!-- En-tête -->
+  <div class="profile-header">
+    <div class="header-content">
+      <h2 class="profile-title">
+        <i class="bi bi-award"></i>
+        Mon Profil de Compétences
+      </h2>
+      <div class="profile-stats" *ngIf="skillsProfile">
+        <div class="stat-card">
+          <div class="stat-value">{{ skillsProfile.overallScore }}%</div>
+          <div class="stat-label">Score Global</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value">{{ skillsProfile.skills.length }}</div>
+          <div class="stat-label">Compétences</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value">{{ skillsProfile.technologies.length }}</div>
+          <div class="stat-label">Technologies</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value">{{ skillsProfile.specialities.length }}</div>
+          <div class="stat-label">Spécialités</div>
+        </div>
+      </div>
+    </div>
+    <div class="profile-actions">
+      <button class="btn-primary" (click)="saveProfile()" [disabled]="saving">
+        <i class="bi bi-save"></i>
+        {{ saving ? 'Sauvegarde...' : 'Sauvegarder' }}
+      </button>
+    </div>
+  </div>
+
+  <!-- Message de chargement -->
+  <div class="loading-container" *ngIf="loading">
+    <div class="loading-spinner">
+      <i class="bi bi-arrow-repeat"></i>
+      Chargement du profil...
+    </div>
+  </div>
+
+  <!-- Contenu principal -->
+  <div class="profile-content" *ngIf="!loading && skillsProfile">
+    
+    <!-- Onglets -->
+    <div class="tabs-container">
+      <div class="tabs">
+        <button 
+          class="tab-button" 
+          [class.active]="activeTab === 'skills'"
+          (click)="activeTab = 'skills'">
+          <i class="bi bi-gear"></i>
+          Compétences
+        </button>
+        <button 
+          class="tab-button" 
+          [class.active]="activeTab === 'technologies'"
+          (click)="activeTab = 'technologies'">
+          <i class="bi bi-cpu"></i>
+          Technologies
+        </button>
+        <button 
+          class="tab-button" 
+          [class.active]="activeTab === 'specialities'"
+          (click)="activeTab = 'specialities'">
+          <i class="bi bi-star"></i>
+          Spécialités
+        </button>
+      </div>
+    </div>
+
+    <!-- Onglet Compétences -->
+    <div class="tab-content" *ngIf="activeTab === 'skills'">
+      <div class="section-header">
+        <h3>Mes Compétences</h3>
+        <button class="btn-primary" (click)="showAddSkillForm = !showAddSkillForm">
+          <i class="bi bi-plus-circle"></i>
+          Ajouter une compétence
+        </button>
+      </div>
+
+      <!-- Formulaire d'ajout de compétence -->
+      <div class="form-container" *ngIf="showAddSkillForm">
+        <form class="skill-form" [formGroup]="skillsForm" (ngSubmit)="addSkill()">
+          <div class="form-row">
+            <div class="form-group">
+              <label>Nom de la compétence</label>
+              <input type="text" formControlName="name" placeholder="Ex: JavaScript">
+            </div>
+            <div class="form-group">
+              <label>Catégorie</label>
+              <select formControlName="category">
+                <option *ngFor="let category of skillCategories" [value]="category.id">
+                  {{ category.name }}
+                </option>
+              </select>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Niveau (1-5)</label>
+              <input type="range" formControlName="level" min="1" max="5">
+              <span class="level-display">{{ getLevelLabel(skillsForm.value.level) }}</span>
+            </div>
+            <div class="form-group">
+              <label>Années d'expérience</label>
+              <input type="number" formControlName="yearsExperience" min="0" step="0.5">
+            </div>
+            <div class="form-group">
+              <label>
+                <input type="checkbox" formControlName="validated">
+                Compétence validée
+              </label>
+            </div>
+          </div>
+          <div class="form-actions">
+            <button type="submit" class="btn-primary">
+              {{ editingSkill ? 'Mettre à jour' : 'Ajouter' }}
+            </button>
+            <button type="button" class="btn-secondary" (click)="resetSkillForm()">
+              Annuler
+            </button>
+          </div>
+        </form>
+      </div>
+
+      <!-- Liste des compétences -->
+      <div class="skills-grid">
+        <div class="skill-card" *ngFor="let skill of skillsProfile.skills">
+          <div class="skill-header">
+            <div class="skill-info">
+              <h4>{{ skill.name }}</h4>
+              <span class="skill-category">{{ skill.category }}</span>
+            </div>
+            <div class="skill-actions">
+              <button class="btn-icon" (click)="editSkill(skill)" title="Modifier">
+                <i class="bi bi-pencil"></i>
+              </button>
+              <button class="btn-icon btn-danger" (click)="deleteSkill(skill.id)" title="Supprimer">
+                <i class="bi bi-trash"></i>
+              </button>
+            </div>
+          </div>
+          <div class="skill-details">
+            <div class="skill-level">
+              <div class="level-bar">
+                <div class="level-fill" [style.width.%]="skill.level * 20" 
+                     [style.background-color]="getLevelColor(skill.level)"></div>
+              </div>
+              <span class="level-text">{{ getLevelLabel(skill.level) }} ({{ skill.yearsExperience }} ans)</span>
+            </div>
+            <div class="skill-meta">
+              <span class="badge" *ngIf="skill.validated">✓ Validée</span>
+              <span class="last-used" *ngIf="skill.lastUsed">
+                Dernière utilisation: {{ skill.lastUsed | date:'shortDate' }}
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Onglet Technologies -->
+    <div class="tab-content" *ngIf="activeTab === 'technologies'">
+      <div class="section-header">
+        <h3>Mes Technologies</h3>
+        <button class="btn-primary" (click)="showAddTechnologyForm = !showAddTechnologyForm">
+          <i class="bi bi-plus-circle"></i>
+          Ajouter une technologie
+        </button>
+      </div>
+
+      <!-- Formulaire d'ajout de technologie -->
+      <div class="form-container" *ngIf="showAddTechnologyForm">
+        <form class="technology-form" [formGroup]="technologiesForm" (ngSubmit)="addTechnology()">
+          <div class="form-row">
+            <div class="form-group">
+              <label>Nom de la technologie</label>
+              <input type="text" formControlName="name" placeholder="Ex: React">
+            </div>
+            <div class="form-group">
+              <label>Catégorie</label>
+              <select formControlName="category">
+                <option *ngFor="let category of technologyCategories" [value]="category.id">
+                  {{ category.name }}
+                </option>
+              </select>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Maîtrise</label>
+              <select formControlName="proficiency">
+                <option value="basic">Base</option>
+                <option value="intermediate">Intermédiaire</option>
+                <option value="advanced">Avancé</option>
+                <option value="expert">Expert</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Nombre de projets</label>
+              <input type="number" formControlName="projects" min="0">
+            </div>
+          </div>
+          <div class="form-actions">
+            <button type="submit" class="btn-primary">
+              {{ editingTechnology ? 'Mettre à jour' : 'Ajouter' }}
+            </button>
+            <button type="button" class="btn-secondary" (click)="resetTechnologyForm()">
+              Annuler
+            </button>
+          </div>
+        </form>
+      </div>
+
+      <!-- Liste des technologies -->
+      <div class="technologies-grid">
+        <div class="technology-card" *ngFor="let tech of skillsProfile.technologies">
+          <div class="tech-header">
+            <div class="tech-info">
+              <h4>{{ tech.name }}</h4>
+              <span class="tech-category">{{ tech.category }}</span>
+            </div>
+            <div class="tech-actions">
+              <button class="btn-icon" (click)="editTechnology(tech)" title="Modifier">
+                <i class="bi bi-pencil"></i>
+              </button>
+              <button class="btn-icon btn-danger" (click)="deleteTechnology(tech.id)" title="Supprimer">
+                <i class="bi bi-trash"></i>
+              </button>
+            </div>
+          </div>
+          <div class="tech-details">
+            <div class="proficiency-badge" [style.background-color]="getProficiencyColor(tech.proficiency)">
+              {{ getProficiencyLabel(tech.proficiency) }}
+            </div>
+            <div class="tech-meta">
+              <span>{{ tech.projects }} projet(s)</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Onglet Spécialités -->
+    <div class="tab-content" *ngIf="activeTab === 'specialities'">
+      <div class="section-header">
+        <h3>Mes Spécialités</h3>
+        <button class="btn-primary" (click)="showAddSpecialityForm = !showAddSpecialityForm">
+          <i class="bi bi-plus-circle"></i>
+          Ajouter une spécialité
+        </button>
+      </div>
+
+      <!-- Formulaire d'ajout de spécialité -->
+      <div class="form-container" *ngIf="showAddSpecialityForm">
+        <form class="speciality-form" [formGroup]="specialitiesForm" (ngSubmit)="addSpeciality()">
+          <div class="form-group">
+            <label>Nom de la spécialité</label>
+            <input type="text" formControlName="name" placeholder="Ex: Développement web">
+          </div>
+          <div class="form-group">
+            <label>Domaine</label>
+            <input type="text" formControlName="domain" placeholder="Ex: Informatique">
+          </div>
+          <div class="form-group">
+            <label>Description</label>
+            <textarea formControlName="description" rows="3" placeholder="Décrivez votre spécialité..."></textarea>
+          </div>
+          <div class="form-actions">
+            <button type="submit" class="btn-primary">
+              {{ editingSpeciality ? 'Mettre à jour' : 'Ajouter' }}
+            </button>
+            <button type="button" class="btn-secondary" (click)="resetSpecialityForm()">
+              Annuler
+            </button>
+          </div>
+        </form>
+      </div>
+
+      <!-- Liste des spécialités -->
+      <div class="specialities-list">
+        <div class="speciality-card" *ngFor="let speciality of skillsProfile.specialities">
+          <div class="speciality-header">
+            <div class="speciality-info">
+              <h4>{{ speciality.name }}</h4>
+              <span class="speciality-domain">{{ speciality.domain }}</span>
+            </div>
+            <div class="speciality-actions">
+              <button class="btn-icon" (click)="editSpeciality(speciality)" title="Modifier">
+                <i class="bi bi-pencil"></i>
+              </button>
+              <button class="btn-icon btn-danger" (click)="deleteSpeciality(speciality.id)" title="Supprimer">
+                <i class="bi bi-trash"></i>
+              </button>
+            </div>
+          </div>
+          <div class="speciality-description">
+            {{ speciality.description }}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Analyse du profil -->
+    <div class="profile-analysis" *ngIf="skillsProfile.strengths.length > 0 || skillsProfile.improvementAreas.length > 0">
+      <div class="analysis-section">
+        <h3>Analyse du Profil</h3>
+        <div class="analysis-grid">
+          <div class="analysis-card strengths" *ngIf="skillsProfile.strengths.length > 0">
+            <h4><i class="bi bi-trophy"></i> Forces</h4>
+            <ul>
+              <li *ngFor="let strength of skillsProfile.strengths">{{ strength }}</li>
+            </ul>
+          </div>
+          <div class="analysis-card improvements" *ngIf="skillsProfile.improvementAreas.length > 0">
+            <h4><i class="bi bi-arrow-up-circle"></i> Axes d'amélioration</h4>
+            <ul>
+              <li *ngFor="let area of skillsProfile.improvementAreas">{{ area }}</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
