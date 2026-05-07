@@ -5,10 +5,12 @@ import { FormsModule, ReactiveFormsModule } from '@angular/forms';
 
 import { AppRoutingModule } from './app-routing.module';
 import { AppComponent } from './app.component';
+import { GanttPageComponent } from './components/manager/gantt-page.component';
 
 @NgModule({
   declarations: [
-    AppComponent
+    AppComponent,
+    GanttPageComponent
   ],
   imports: [
     BrowserModule,

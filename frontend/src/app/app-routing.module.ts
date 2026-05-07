@@ -1,6 +1,7 @@
 import { NgModule } from '@angular/core';
 import { RouterModule, Routes } from '@angular/router';
 import { ManagerAuthGuard } from './guards/manager-auth.guard';
+import { GanttPageComponent } from './components/manager/gantt-page.component';
 
 const routes: Routes = [
   { path: '', redirectTo: '/landing', pathMatch: 'full' },
@@ -8,6 +9,7 @@ const routes: Routes = [
   { path: 'users', loadChildren: () => import('./components/users/users.module').then(m => m.UsersModule) },
   { path: 'manager-login', loadChildren: () => import('./components/manager/manager.module').then(m => m.ManagerModule) },
   { path: 'manager', loadChildren: () => import('./components/manager/manager.module').then(m => m.ManagerModule) },
+  { path: 'gantt', component: GanttPageComponent, canActivate: [ManagerAuthGuard] },
   { path: 'employee-login', loadChildren: () => import('./components/employee/employee-login.module').then(m => m.EmployeeLoginModule) },
   { path: 'employee', loadChildren: () => import('./components/employee/employee.module').then(m => m.EmployeeModule) },
   //{ path: 'home', loadChildren: () => import('./components/home/home.module').then(m => m.HomeModule) },

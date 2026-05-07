@@ -502,7 +502,63 @@
 
       <!-- ══ GANTT ══ -->
       <div *ngIf="activeSection === 'gantt'" class="section fade-in">
-        <!--<app-gantt></app-gantt>-->
+        <div class="gantt-link-container">
+          <div class="gantt-preview">
+            <div class="preview-header">
+              <h2 class="section-title">Diagramme de Gantt</h2>
+              <p class="preview-description">Visualisez et gérez la planification de vos projets</p>
+            </div>
+            
+            <div class="preview-content">
+              <div class="preview-stats">
+                <div class="stat-item">
+                  <div class="stat-number">{{ recentProjects.length }}</div>
+                  <div class="stat-label">Projets actifs</div>
+                </div>
+                <div class="stat-item">
+                  <div class="stat-number">{{ inProgressTasks.length }}</div>
+                  <div class="stat-label">Tâches en cours</div>
+                </div>
+                <div class="stat-item">
+                  <div class="stat-number">{{ getAverageProgress() }}%</div>
+                  <div class="stat-label">Progression moyenne</div>
+                </div>
+              </div>
+              
+              <div class="mini-gantt-preview">
+                <div class="mini-project">
+                  <div class="mini-project-name">Développement ERP</div>
+                  <div class="mini-progress">
+                    <div class="mini-bar" style="width: 65%; background: #7C74FF;"></div>
+                  </div>
+                </div>
+                <div class="mini-project">
+                  <div class="mini-project-name">Site E-commerce</div>
+                  <div class="mini-progress">
+                    <div class="mini-bar" style="width: 40%; background: #10B981;"></div>
+                  </div>
+                </div>
+                <div class="mini-project">
+                  <div class="mini-project-name">Application Mobile</div>
+                  <div class="mini-progress">
+                    <div class="mini-bar" style="width: 20%; background: #F59E0B;"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <div class="preview-actions">
+              <button class="btn-primary btn-large" (click)="goToGantt()">
+                <i class="bi bi-calendar3-range"></i>
+                Ouvrir le Diagramme de Gantt
+              </button>
+              <button class="btn-secondary">
+                <i class="bi bi-info-circle"></i>
+                En savoir plus
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
 
       <!-- ══ UTILISATEURS ══ -->

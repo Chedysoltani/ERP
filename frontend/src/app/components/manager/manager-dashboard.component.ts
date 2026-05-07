@@ -46,7 +46,7 @@ interface Task {
 @Component({
   selector: 'app-dashboard',
   templateUrl: './manager-dashboard.component.html',
-  styleUrls: ['./manager-dashboard.component.css', './calendar-improvements.css', './tasks-improvements.css']
+  styleUrls: ['./manager-dashboard.component.css', './calendar-improvements.css', './tasks-improvements.css', './gantt-preview.css']
 })
 export class ManagerDashboardComponent implements OnInit {
   activeSection: SectionId = 'dashboard';
@@ -523,6 +523,18 @@ export class ManagerDashboardComponent implements OnInit {
   // Helper method for event propagation
   stopPropagation(event: Event) {
     event.stopPropagation();
+  }
+
+  goToGantt() {
+    // Naviguer vers la page Gantt
+    window.location.href = '/gantt';
+  }
+
+  getAverageProgress(): number {
+    if (this.recentProjects.length === 0) return 0;
+    
+    const totalProgress = this.recentProjects.reduce((sum, project) => sum + (project.progress || 0), 0);
+    return Math.round(totalProgress / this.recentProjects.length);
   }
 
   // Méthodes pour le dashboard
