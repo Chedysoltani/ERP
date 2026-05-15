@@ -1036,17 +1036,46 @@ router.post('/:id/time-sessions', async (req, res) => {
     const { id } = req.params;
     const { employee_id, description } = req.body;
 
-    // Vérifier si une session est déjà en cours pour cet employé
-    const existingSession = await db.query(`
-      SELECT * FROM task_time_sessions 
-      WHERE task_id = ? AND employee_id = ? AND status = 'running'
-    `, [id, employee_id]);
+    // Vérifier la tâche et l'affectation
+    const task = await db.query('SELECT * FROM tasks WHERE id = ? AND assignee_id = ?', [id, employee_id]);
+    if (task.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Tâche introuvable ou non assignée à cet employé'
+      });
+    }
 
-    if (existingSession.length > 0) {
+    // Vérifier si une session est déjà en cours pour cet employé sur n'importe quelle tâche
+    const runningSession = await db.query(`
+      SELECT * FROM task_time_sessions 
+      WHERE employee_id = ? AND status = 'running'
+    `, [employee_id]);
+
+    if (runningSession.length > 0) {
       return res.status(400).json({
         success: false,
-        message: 'Une session est déjà en cours pour cette tâche'
+        message: 'Une autre session est déjà en cours. Terminez ou mettez en pause la session active avant d’en démarrer une nouvelle.'
       });
+    }
+
+    // Vérifier les dépendances avant de commencer le travail
+    const predDeps = await db.query(
+      `
+      SELECT td.dependency_type, pt.status AS pred_status
+      FROM task_dependencies td
+      JOIN tasks pt ON pt.id = td.depends_on_task_id
+      WHERE td.task_id = ?
+      `,
+      [id]
+    );
+
+    for (const d of predDeps) {
+      if (isStartBlockedByDependency(d.dependency_type, d.pred_status)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Cette tâche ne peut pas démarrer : une dépendance sur une tâche prédécesseur n’est pas satisfaite.'
+        });
+      }
     }
 
     // Créer la nouvelle session
@@ -1055,9 +1084,12 @@ router.post('/:id/time-sessions', async (req, res) => {
       VALUES (?, ?, NOW(), 'running', ?)
     `, [id, employee_id, description || null]);
 
+    // Automatiquement passer la tâche à in_progress
+    await db.query('UPDATE tasks SET status = ? WHERE id = ?', ['in_progress', id]);
+
     res.json({
       success: true,
-      message: 'Session de temps démarrée',
+      message: 'Session de temps démarrée et tâche mise à jour',
       data: { sessionId: result.insertId }
     });
   } catch (error) {
@@ -1114,6 +1146,31 @@ router.put('/:id/time-sessions/:sessionId/resume', async (req, res) => {
   try {
     const { id, sessionId } = req.params;
 
+    const session = await db.query(`
+      SELECT * FROM task_time_sessions 
+      WHERE id = ? AND task_id = ?
+    `, [sessionId, id]);
+
+    if (session.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Session non trouvée pour cette tâche'
+      });
+    }
+
+    const employeeId = session[0].employee_id;
+    const otherRunning = await db.query(`
+      SELECT * FROM task_time_sessions 
+      WHERE employee_id = ? AND status = 'running' AND id != ?
+    `, [employeeId, sessionId]);
+
+    if (otherRunning.length > 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Impossible de reprendre cette session : un autre pointage est déjà en cours pour cet employé.'
+      });
+    }
+
     await db.query(`
       UPDATE task_time_sessions 
       SET status = 'running', start_time = NOW(), end_time = NULL
@@ -1140,7 +1197,7 @@ router.put('/:id/time-sessions/:sessionId/complete', async (req, res) => {
 
     // Calculer la durée finale
     const session = await db.query(`
-      SELECT start_time, duration_seconds FROM task_time_sessions 
+      SELECT start_time, duration_seconds, employee_id FROM task_time_sessions 
       WHERE id = ? AND task_id = ?
     `, [sessionId, id]);
 
@@ -1151,6 +1208,7 @@ router.put('/:id/time-sessions/:sessionId/complete', async (req, res) => {
       });
     }
 
+    const employeeId = session[0].employee_id;
     let duration;
     if (session[0].status === 'running') {
       duration = Math.floor((new Date() - new Date(session[0].start_time)) / 1000);
@@ -1171,10 +1229,20 @@ router.put('/:id/time-sessions/:sessionId/complete', async (req, res) => {
       WHERE id = ?
     `, [duration, id]);
 
+    // Passer la tâche à done automatiquement
+    await db.query('UPDATE tasks SET status = ? WHERE id = ?', ['done', id]);
+
+    // Créer automatiquement une entrée timesheet pour aujourd'hui
+    const hours = parseFloat((duration / 3600).toFixed(2));
+    await db.query(`
+      INSERT INTO timesheets (employee_id, date, task_id, hours, description, status)
+      VALUES (?, CURDATE(), ?, ?, ?, ?)
+    `, [employeeId, id, hours, `Pointage tâche #${id}`, 'pending']);
+
     res.json({
       success: true,
-      message: 'Session terminée',
-      data: { duration }
+      message: 'Session terminée, tâche complétée et timesheet créé',
+      data: { duration, hours }
     });
   } catch (error) {
     console.error('Erreur lors de la terminaison:', error);
@@ -1192,9 +1260,11 @@ router.get('/:id/time-sessions', async (req, res) => {
 
     const sessions = await db.query(`
       SELECT tts.*, 
-        CONCAT(u.prenom, ' ', u.nom) as employee_name
+        CONCAT(u.prenom, ' ', u.nom) as employee_name,
+        t.title as task_title
       FROM task_time_sessions tts
       JOIN users u ON tts.employee_id = u.id
+      LEFT JOIN tasks t ON tts.task_id = t.id
       WHERE tts.task_id = ?
       ORDER BY tts.start_time DESC
     `, [id]);
@@ -1205,6 +1275,39 @@ router.get('/:id/time-sessions', async (req, res) => {
     });
   } catch (error) {
     console.error('Erreur lors de la récupération des sessions:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erreur lors de la récupération des sessions'
+    });
+  }
+});
+
+// Obtenir les sessions de temps d'aujourd'hui pour l'employé (pour le timesheet)
+router.get('/employee/:employeeId/today-sessions', async (req, res) => {
+  try {
+    const { employeeId } = req.params;
+
+    const sessions = await db.query(`
+      SELECT tts.*, 
+        t.title as task_title,
+        (tts.duration_seconds / 3600) as hours
+      FROM task_time_sessions tts
+      LEFT JOIN tasks t ON tts.task_id = t.id
+      WHERE tts.employee_id = ? AND DATE(tts.start_time) = CURDATE()
+      ORDER BY tts.start_time DESC
+    `, [employeeId]);
+
+    const totalHours = sessions.reduce((sum, s) => sum + (s.duration_seconds / 3600), 0);
+
+    res.json({
+      success: true,
+      data: {
+        sessions,
+        totalHours: parseFloat(totalHours.toFixed(2))
+      }
+    });
+  } catch (error) {
+    console.error('Erreur lors de la récupération des sessions d\'aujourd\'hui:', error);
     res.status(500).json({
       success: false,
       message: 'Erreur lors de la récupération des sessions'

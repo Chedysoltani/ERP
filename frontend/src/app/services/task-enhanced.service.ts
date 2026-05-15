@@ -107,6 +107,11 @@ export class TaskEnhancedService {
     return this.http.get(`${this.apiUrl}/tasks/${taskId}/time-sessions`, this.authOpts());
   }
 
+  // Obtenir les sessions de pointage d'aujourd'hui pour un employé
+  getTodaySessionsByEmployee(employeeId: number): Observable<any> {
+    return this.http.get(`${this.apiUrl}/tasks/employee/${employeeId}/today-sessions`, this.authOpts());
+  }
+
   // ==================== TASK EDIT HISTORY ====================
 
   // Obtenir l'historique d'édition d'une tâche

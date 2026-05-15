@@ -428,18 +428,10 @@ interface GanttViewMode {
       font-weight: 600;
       color: #1565c0;
     }
-
-    .gantt-row {
       display: flex;
-      align-items: center;
       padding: 12px;
       border-bottom: 1px solid #e0e0e0;
       transition: background 0.2s;
-      min-height: 80px;
-    }
-
-    .gantt-row:last-child {
-      border-bottom: none;
     }
 
     .gantt-row:hover {

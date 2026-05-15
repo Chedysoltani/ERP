@@ -2,6 +2,20 @@ const express = require('express');
 const router = express.Router();
 const db = require('../config/database');
 
+function isStartBlockedByDependency(dependencyType, predStatus) {
+  if (dependencyType === 'start_to_start') return predStatus === 'todo';
+  if (dependencyType === 'finish_to_finish') return false;
+  return predStatus !== 'done';
+}
+
+function isDoneBlockedByDependency(dependencyType, predStatus) {
+  if (dependencyType === 'finish_to_finish' || dependencyType === 'finish_to_start') {
+    return predStatus !== 'done';
+  }
+  if (dependencyType === 'start_to_start') return predStatus === 'todo';
+  return false;
+}
+
 // GET les tâches assignées à l'employé
 router.get('/:employeeId/tasks', async (req, res) => {
   try {
@@ -181,6 +195,32 @@ router.put('/:employeeId/tasks/:taskId/status', async (req, res) => {
         success: false,
         message: 'Tâche non trouvée ou non assignée à cet employé'
       });
+    }
+
+    // Vérifier les dépendances avant de commencer ou terminer la tâche
+    const predDeps = await db.query(
+      `
+      SELECT td.dependency_type, pt.status AS pred_status
+      FROM task_dependencies td
+      JOIN tasks pt ON pt.id = td.depends_on_task_id
+      WHERE td.task_id = ?
+      `,
+      [taskId]
+    );
+
+    for (const d of predDeps) {
+      if (status === 'in_progress' && isStartBlockedByDependency(d.dependency_type, d.pred_status)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Cette tâche ne peut pas passer en cours : une dépendance sur une tâche prédécesseur n’est pas satisfaite.'
+        });
+      }
+      if (status === 'done' && isDoneBlockedByDependency(d.dependency_type, d.pred_status)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Cette tâche ne peut pas être terminée : une dépendance impose que la tâche prédécesseur soit dans un état compatible.'
+        });
+      }
     }
 
     // Mettre à jour le statut
