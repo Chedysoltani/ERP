@@ -163,6 +163,52 @@ FORMAT JSON ATTENDU :
       res.status(500).json({ success: false, message: 'Erreur lors de la création du projet.', error: error.message });
     }
   }
+
+  static async savePlanning(req, res) {
+    try {
+      const { projectData, manager_id } = req.body;
+
+      if (!projectData || !projectData.projectName) {
+        return res.status(400).json({ success: false, message: 'Données de planning invalides.' });
+      }
+
+      await db.query(
+        'INSERT INTO plannings (project_name, description, simulation_data, manager_id) VALUES (?, ?, ?, ?)',
+        [
+          projectData.projectName,
+          projectData.description || '',
+          JSON.stringify(projectData),
+          manager_id || 1
+        ]
+      );
+
+      res.json({
+        success: true,
+        message: 'Planning enregistré avec succès.'
+      });
+    } catch (error) {
+      console.error('Erreur lors de l\'enregistrement du planning :', error);
+      res.status(500).json({ success: false, message: 'Erreur lors de l\'enregistrement du planning.', error: error.message });
+    }
+  }
+
+  static async getPlannings(req, res) {
+    try {
+      const { manager_id } = req.query;
+      const plannings = await db.query(
+        'SELECT * FROM plannings WHERE manager_id = ? ORDER BY created_at DESC',
+        [manager_id || 1]
+      );
+
+      res.json({
+        success: true,
+        data: plannings
+      });
+    } catch (error) {
+      console.error('Erreur lors de la récupération des plannings :', error);
+      res.status(500).json({ success: false, message: 'Erreur lors de la récupération des plannings.', error: error.message });
+    }
+  }
 }
 
 module.exports = IAController;

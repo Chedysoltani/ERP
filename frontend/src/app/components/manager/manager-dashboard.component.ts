@@ -4,11 +4,12 @@ import { ManagerAuthService, Manager, Project, Meeting } from '../../services/ma
 import { DocumentsService } from '../../services/documents.service';
 import { AnalyticsService } from '../../services/analytics.service';
 import { TaskEnhancedService } from '../../services/task-enhanced.service';
+import { IARecommendationService } from '../../services/ia-recommendation.service';
 import { Document } from '../../models/document.model';
 
 export type SectionId =
   | 'dashboard' | 'projets' | 'taches' | 'gantt' | 'analytics'
-  | 'utilisateurs' | 'reunions' | 'recommandations' | 'simulateur' | 'documents';
+  | 'utilisateurs' | 'reunions' | 'recommandations' | 'simulateur' | 'documents' | 'planning';
 
 interface DisplayProject {
   id: number;
@@ -121,6 +122,9 @@ export class ManagerDashboardComponent implements OnInit {
   };
   searchTerm: string = '';
 
+  // Propriétés pour les plannings
+  savedPlannings: any[] = [];
+
 
   // Propriétés pour la navigation du calendrier
   currentCalendarDate = new Date();
@@ -161,6 +165,9 @@ export class ManagerDashboardComponent implements OnInit {
     
     // Charger les documents
     this.loadDocuments();
+    
+    // Charger les plannings
+    this.loadPlannings();
     
     // Les données seront chargées depuis la base de données via les méthodes appelées ci-dessus
   }
@@ -549,7 +556,8 @@ export class ManagerDashboardComponent implements OnInit {
     public documentsService: DocumentsService,
     private router: Router,
     private analyticsService: AnalyticsService,
-    private taskEnhancedService: TaskEnhancedService
+    private taskEnhancedService: TaskEnhancedService,
+    private iaService: IARecommendationService
   ) {}
 
   timesheets = [
@@ -611,6 +619,7 @@ export class ManagerDashboardComponent implements OnInit {
     { id: 'reunions',     label: 'Réunions',     icon: 'bi-camera-video',   group: 'equipe',    badge: '3'  },
     { id: 'recommandations', label: 'Recommandations IA', icon: 'bi-cpu', group: 'equipe', badge: null },
     { id: 'simulateur',    label: 'Simulateur Projets', icon: 'bi-diagram-3', group: 'equipe', badge: null },
+    { id: 'planning',      label: 'Planning',        icon: 'bi-calendar-event', group: 'equipe', badge: null },
     { id: 'analytics',     label: 'Analytics',       icon: 'bi-graph-up', group: 'principal', badge: null },
     { id: 'documents',  label: 'Documents',  icon: 'bi-folder2-open',   group: 'ressources',badge: null },
   ];
@@ -625,6 +634,7 @@ export class ManagerDashboardComponent implements OnInit {
     reunions:     { title: 'Réunions',       sub: 'Planification & notes' },
     recommandations: { title: 'Recommandations IA', sub: 'IA d\'affectation de tâches' },
     simulateur:    { title: 'Simulateur Projets', sub: 'Simulation de projets avec IA' },
+    planning:      { title: 'Plannings Sauvegardés', sub: 'Historique des simulations IA' },
     documents:  { title: 'Documents',      sub: 'Gestion des fichiers' },
   };
 
@@ -2349,5 +2359,52 @@ export class ManagerDashboardComponent implements OnInit {
     }
     
     console.log('Employés sélectionnés après modification:', this.newMeeting.selectedEmployees);
+  }
+
+  loadPlannings() {
+    if (!this.currentManager) return;
+    this.iaService.getPlannings(this.currentManager.id).subscribe({
+      next: (plannings: any[]) => {
+        this.savedPlannings = plannings.map(p => ({
+          ...p,
+          simulation_data: typeof p.simulation_data === 'string' ? JSON.parse(p.simulation_data) : p.simulation_data
+        }));
+      },
+      error: (error: any) => console.error('Erreur chargement plannings:', error)
+    });
+  }
+
+  deletePlanning(id: number) {
+    if (confirm('Voulez-vous vraiment supprimer cette simulation ?')) {
+      // Pour l'instant, on fait juste un delete local ou on pourrait ajouter un endpoint backend
+      // Mais restons simples
+      this.savedPlannings = this.savedPlannings.filter(p => p.id !== id);
+    }
+  }
+
+  viewPlanningDetails(planning: any) {
+    // Cette méthode peut être utilisée pour afficher un modal avec les détails du planning
+    console.log('Viewing planning:', planning);
+    // On pourrait rediriger vers le simulateur avec ces données pré-remplies
+  }
+
+  confirmGeneratedProject(projectData: any, managerId: number) {
+    if (confirm('Voulez-vous créer officiellement ce projet et ses tâches ?')) {
+      this.loading = true;
+      this.iaService.confirmGeneratedProject(projectData, managerId).subscribe({
+        next: (response: any) => {
+          console.log('Projet créé:', response);
+          this.loading = false;
+          alert('Projet créé avec succès !');
+          this.navigate('projets');
+          this.loadProjectsFromDatabase();
+        },
+        error: (error: any) => {
+          console.error('Erreur création projet:', error);
+          this.loading = false;
+          alert('Erreur lors de la création du projet.');
+        }
+      });
+    }
   }
 }

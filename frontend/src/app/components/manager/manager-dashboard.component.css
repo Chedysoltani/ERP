@@ -1235,6 +1235,69 @@ tr:last-child td { border-bottom: none; }
   font-size: 14px; margin: 0;
 }
 
+/* ══ PLANNING SECTION ══ */
+.planning-header {
+  display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;
+}
+.plannings-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 20px;
+}
+.planning-card {
+  background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 16px; padding: 20px; transition: all 0.3s;
+}
+.planning-card:hover {
+  transform: translateY(-4px); border-color: rgba(99,102,241,0.3);
+  box-shadow: 0 12px 30px rgba(0,0,0,0.4);
+}
+.planning-card-header {
+  display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px;
+}
+.planning-title {
+  font-size: 16px; font-weight: 700; color: #f8fafc; margin: 0 0 4px 0;
+}
+.planning-date {
+  font-size: 12px; color: #64748b;
+}
+.planning-desc {
+  font-size: 13px; color: #94a3b8; margin-bottom: 18px; line-height: 1.5;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.planning-stats {
+  display: flex; gap: 16px; margin-bottom: 20px; padding: 12px;
+  background: rgba(255,255,255,0.03); border-radius: 10px;
+}
+.plan-stat {
+  display: flex; align-items: center; gap: 6px; font-size: 12px; color: #cbd5e1;
+}
+.plan-stat i { color: #6366f1; }
+.complexity-badge {
+  padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: 700; text-transform: uppercase;
+}
+.complexity-Simple { background: rgba(16,185,129,0.15); color: #34d399; }
+.complexity-Moyenne { background: rgba(245,158,11,0.15); color: #fbbf24; }
+.complexity-Complexe { background: rgba(239,68,68,0.15); color: #f87171; }
+
+.planning-footer {
+  display: flex; gap: 10px;
+}
+.planning-footer button {
+  flex: 1; padding: 8px; border-radius: 8px; font-size: 12px; font-weight: 600;
+  display: flex; align-items: center; justify-content: center; gap: 6px; transition: all 0.2s;
+}
+.btn-outline {
+  background: transparent; border: 1px solid rgba(255,255,255,0.1); color: #cbd5e1;
+}
+.btn-outline:hover { background: rgba(255,255,255,0.05); color: #f8fafc; border-color: rgba(255,255,255,0.2); }
+
+.empty-planning {
+  padding: 80px 20px; text-align: center; background: rgba(255,255,255,0.02);
+  border: 1px dashed rgba(255,255,255,0.1); border-radius: 20px;
+}
+.empty-state i { font-size: 48px; color: #475569; margin-bottom: 16px; display: block; }
+.empty-state h3 { font-size: 18px; font-weight: 700; color: #f8fafc; margin-bottom: 8px; }
+.empty-state p { color: #64748b; font-size: 14px; margin: 0; }
+
 @media (max-width: 768px) {
   .sidebar { display: none; }
   .stats-grid { grid-template-columns: 1fr 1fr; }

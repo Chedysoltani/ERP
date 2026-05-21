@@ -117,6 +117,36 @@ export class IARecommendationService {
     );
   }
 
+  savePlanning(projectData: any, managerId: number): Observable<any> {
+    return this.http.post(`${this.iaApiUrl}/save-planning`, { projectData, manager_id: managerId }).pipe(
+      map((response: any) => {
+        if (response.success) {
+          return response.data;
+        }
+        throw new Error(response.message || 'Erreur lors de l\'enregistrement du planning');
+      }),
+      catchError(error => {
+        console.error('Error saving planning:', error);
+        return throwError(() => error);
+      })
+    );
+  }
+
+  getPlannings(managerId: number): Observable<any[]> {
+    return this.http.get(`${this.iaApiUrl}/plannings?manager_id=${managerId}`).pipe(
+      map((response: any) => {
+        if (response.success) {
+          return response.data;
+        }
+        throw new Error(response.message || 'Erreur lors de la récupération des plannings');
+      }),
+      catchError(error => {
+        console.error('Error getting plannings:', error);
+        return throwError(() => error);
+      })
+    );
+  }
+
   // Algorithme local de matching compétences-tâches
   private calculateTaskMatches(task: TaskWithRequirements): EmployeeMatch[] {
     console.log('🔧 Démarrage de l\'algorithme local de matching...');

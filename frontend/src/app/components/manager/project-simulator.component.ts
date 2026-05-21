@@ -404,6 +404,146 @@ export class ProjectSimulatorComponent implements OnInit {
     });
   }
 
+  saveToPlanning() {
+    if (!this.generatedProjectData) return;
+
+    this.confirming = true;
+    
+    let managerId = 1;
+    try {
+      const currentManagerStr = localStorage.getItem('currentManager');
+      if (currentManagerStr) {
+        managerId = JSON.parse(currentManagerStr).id;
+      }
+    } catch(e) {}
+
+    this.iaService.savePlanning(this.generatedProjectData, managerId).subscribe({
+      next: (response) => {
+        console.log('✅ Planning enregistré avec succès:', response);
+        this.confirming = false;
+        alert('Simulation enregistrée dans la section Planning !');
+      },
+      error: (error) => {
+        console.error('Erreur enregistrement planning:', error);
+        this.confirming = false;
+        alert('Erreur lors de l\'enregistrement du planning.');
+      }
+    });
+  }
+
+  confirmManualProject() {
+    if (!this.simulationResult) return;
+    this.confirming = true;
+    
+    // Essayer de récupérer l'ID du manager
+    let managerId = 1;
+    try {
+      const currentManagerStr = localStorage.getItem('currentManager');
+      if (currentManagerStr) {
+        managerId = JSON.parse(currentManagerStr).id;
+      }
+    } catch(e) {}
+
+    // Prepare data to match expected backend format
+    const projectData = {
+      projectName: this.projectForm.value.name,
+      description: this.projectForm.value.description,
+      duration: this.projectForm.value.duration + ' jours',
+      complexity: this.simulationResult.riskLevel === 'high' ? 'élevé' : (this.simulationResult.riskLevel === 'medium' ? 'moyen' : 'faible'),
+      timeline: {
+        startDate: new Date().toISOString().split('T')[0],
+        endDate: this.simulationResult.estimatedCompletion ? new Date(this.simulationResult.estimatedCompletion).toISOString().split('T')[0] : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+      },
+      phases: [
+        {
+          name: "Phase Principale",
+          description: "Toutes les tâches du projet",
+          tasks: (this.projectForm.value.tasks || []).map((task: any) => {
+            const assignment = this.simulationResult.taskAssignments?.find((a: any) => a.taskId === task.id || a.taskTitle === task.title || this.getTaskTitle(a.taskId) === task.title);
+            return {
+              title: task.title,
+              description: task.description,
+              estimatedTime: task.estimatedHours + 'h',
+              priority: task.priority,
+              dependencies: [],
+              role: assignment ? assignment.employeeName : "Non assigné",
+              status: "todo"
+            };
+          })
+        }
+      ]
+    };
+
+    this.iaService.confirmGeneratedProject(projectData, managerId).subscribe({
+      next: (response) => {
+        console.log('✅ Projet manuel créé avec succès:', response);
+        this.confirming = false;
+        alert('Projet enregistré avec succès ! Vous pouvez le voir dans la section Projets.');
+        this.resetForm();
+      },
+      error: (error) => {
+        console.error('Erreur enregistrement projet manuel:', error);
+        this.confirming = false;
+        alert('Erreur lors de l\'enregistrement du projet.');
+      }
+    });
+  }
+
+  saveManualToPlanning() {
+    if (!this.simulationResult) return;
+    this.confirming = true;
+    
+    let managerId = 1;
+    try {
+      const currentManagerStr = localStorage.getItem('currentManager');
+      if (currentManagerStr) {
+        managerId = JSON.parse(currentManagerStr).id;
+      }
+    } catch(e) {}
+
+    const projectData = {
+      projectName: this.projectForm.value.name,
+      description: this.projectForm.value.description,
+      duration: this.projectForm.value.duration + ' jours',
+      complexity: this.simulationResult.riskLevel === 'high' ? 'élevé' : (this.simulationResult.riskLevel === 'medium' ? 'moyen' : 'faible'),
+      timeline: {
+        startDate: new Date().toISOString().split('T')[0],
+        endDate: this.simulationResult.estimatedCompletion ? new Date(this.simulationResult.estimatedCompletion).toISOString().split('T')[0] : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+      },
+      phases: [
+        {
+          name: "Phase Principale",
+          description: "Toutes les tâches du projet",
+          tasks: (this.projectForm.value.tasks || []).map((task: any) => {
+            const assignment = this.simulationResult.taskAssignments?.find((a: any) => a.taskId === task.id || a.taskTitle === task.title || this.getTaskTitle(a.taskId) === task.title);
+            return {
+              title: task.title,
+              description: task.description,
+              estimatedTime: task.estimatedHours + 'h',
+              priority: task.priority,
+              dependencies: [],
+              role: assignment ? assignment.employeeName : "Non assigné",
+              status: "todo"
+            };
+          })
+        }
+      ]
+    };
+
+    this.iaService.savePlanning(projectData, managerId).subscribe({
+      next: (response) => {
+        console.log('✅ Planning manuel enregistré avec succès:', response);
+        this.confirming = false;
+        alert('Simulation enregistrée dans la section Planning !');
+      },
+      error: (error) => {
+        console.error('Erreur enregistrement planning manuel:', error);
+        this.confirming = false;
+        alert('Erreur lors de l\'enregistrement du planning.');
+      }
+    });
+  }
+
   private formatTasks(tasks: any[]): TaskWithRequirements[] {
     return tasks.map((task, index) => ({
       id: index + 1,

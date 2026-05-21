@@ -439,8 +439,12 @@
       </div>
     </div>
 
-    <!-- Bouton de confirmation -->
-    <div class="form-actions mt-4 text-center">
+    <!-- Boutons d'action -->
+    <div class="form-actions mt-4 text-center d-flex justify-content-center gap-3">
+      <button type="button" class="btn-primary btn-lg" (click)="saveToPlanning()" [disabled]="confirming">
+        <i class="bi bi-save"></i>
+        Enregistrer dans Planning
+      </button>
       <button type="button" class="btn-success btn-lg" (click)="confirmGeneratedProject()" [disabled]="confirming">
         <i class="bi bi-check2-circle"></i>
         {{ confirming ? 'Création en cours...' : 'Confirmer et Créer le Projet' }}
@@ -559,5 +563,17 @@
     
     <!-- Debug des recommandations -->
    
+    <!-- Boutons d'action -->
+    <div class="form-actions mt-4 text-center d-flex justify-content-center gap-3">
+      <button type="button" class="btn-primary btn-lg" (click)="saveManualToPlanning()" [disabled]="confirming">
+        <i class="bi bi-save"></i>
+        Enregistrer dans Planning
+      </button>
+      <button type="button" class="btn-success btn-lg" (click)="confirmManualProject()" [disabled]="confirming">
+        <i class="bi bi-check2-circle"></i>
+        {{ confirming ? 'Création en cours...' : 'Confirmer et Créer le Projet' }}
+      </button>
+    </div>
+
   </div>
 </div>

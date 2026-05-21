@@ -25,5 +25,7 @@ if (!fs.existsSync(tempDir)) {
 
 router.post('/simulate-pdf', upload.single('file'), IAController.simulateProjectFromPdf);
 router.post('/confirm-project', IAController.confirmProject);
+router.post('/save-planning', IAController.savePlanning);
+router.get('/plannings', IAController.getPlannings);
 
 module.exports = router;
