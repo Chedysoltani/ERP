@@ -131,65 +131,125 @@ router.post('/recommendations/task', async (req, res) => {
     `;
     
     const employeeResults = await db.query(employeeProfilesQuery);
-    
+
+    // ── Charge de travail réelle depuis la DB ─────────────────────────────
+    // Tâches actives (todo + in_progress) par employé — table principale
+    const workloadPrimary = await db.query(`
+      SELECT assignee_id as emp_id,
+             COUNT(*)                          AS active_tasks,
+             COALESCE(SUM(estimated_hours), 0) AS total_hours
+      FROM tasks
+      WHERE status IN ('todo','in_progress') AND assignee_id IS NOT NULL
+      GROUP BY assignee_id
+    `);
+
+    // Tâches actives via task_assignments (assignations multiples)
+    let workloadMulti = [];
+    try {
+      workloadMulti = await db.query(`
+        SELECT ta.employee_id AS emp_id,
+               COUNT(DISTINCT ta.task_id)         AS active_tasks,
+               COALESCE(SUM(t.estimated_hours), 0) AS total_hours
+        FROM task_assignments ta
+        JOIN tasks t ON ta.task_id = t.id
+        WHERE t.status IN ('todo','in_progress')
+        GROUP BY ta.employee_id
+      `);
+    } catch (_) {}
+
+    // Fusionner les deux sources dans une map
+    const workloadMap = {};
+    for (const r of workloadPrimary) {
+      workloadMap[r.emp_id] = {
+        activeTasks: parseInt(r.active_tasks) || 0,
+        hours: parseFloat(r.total_hours) || 0
+      };
+    }
+    for (const r of workloadMulti) {
+      if (workloadMap[r.emp_id]) {
+        // Éviter double-comptage si déjà compté en primaire
+        workloadMap[r.emp_id].activeTasks = Math.max(workloadMap[r.emp_id].activeTasks, parseInt(r.active_tasks) || 0);
+        workloadMap[r.emp_id].hours = Math.max(workloadMap[r.emp_id].hours, parseFloat(r.total_hours) || 0);
+      } else {
+        workloadMap[r.emp_id] = {
+          activeTasks: parseInt(r.active_tasks) || 0,
+          hours: parseFloat(r.total_hours) || 0
+        };
+      }
+    }
+
+    const WEEKLY_CAPACITY = 40; // heures/semaine
+
     // Calculer les scores de matching pour chaque employé
     const recommendations = employeeResults.map(employee => {
-      const skills = employee.skills ? (typeof employee.skills === 'string' ? JSON.parse(employee.skills) : employee.skills) : [];
+      const skills = employee.skills
+        ? (typeof employee.skills === 'string' ? JSON.parse(employee.skills) : employee.skills)
+        : [];
       const matchingSkills = [];
       const missingSkills = [];
       let totalScore = 0;
       let maxScore = 0;
-      
-      console.log(`👤 Analyse employé ${employee.employeeName}:`, skills);
-      
+
       task.requirements.forEach(requirement => {
-        const employeeSkill = skills.find(s => s.name === requirement.skillName);
-        const importanceWeight = requirement.importance === 'critical' ? 30 : 
-                               requirement.importance === 'high' ? 20 : 
-                               requirement.importance === 'medium' ? 10 : 5;
+        const employeeSkill = skills.find(s => s && s.name === requirement.skillName);
+        const importanceWeight = requirement.importance === 'critical' ? 30 :
+                                 requirement.importance === 'high'     ? 20 :
+                                 requirement.importance === 'medium'   ? 10 : 5;
         maxScore += importanceWeight;
-        
+
         if (employeeSkill) {
           const skillScore = Math.min(employeeSkill.level, requirement.requiredLevel) / requirement.requiredLevel;
           totalScore += skillScore * importanceWeight;
           matchingSkills.push(requirement.skillName);
-          console.log(`  ✅ ${requirement.skillName}: niveau ${employeeSkill.level}/${requirement.requiredLevel} = ${skillScore * importanceWeight} points`);
         } else {
           missingSkills.push(requirement.skillName);
-          console.log(`  ❌ ${requirement.skillName}: non trouvé`);
         }
       });
-      
+
       const matchScore = maxScore > 0 ? Math.round((totalScore / maxScore) * 100) : 0;
-      
-      // Déterminer la recommandation
+
+      // ── Disponibilité réelle ─────────────────────────────────────────────
+      const empLoad = workloadMap[employee.employeeId] || { activeTasks: 0, hours: 0 };
+      const workloadPct = Math.min(Math.round((empLoad.hours / WEEKLY_CAPACITY) * 100), 100);
+      const availability = Math.max(100 - workloadPct, 0);
+
+      // ── Recommandation : compétences + disponibilité ─────────────────────
       let recommendation;
-      if (matchScore >= 80) recommendation = 'highly_recommended';
+      if      (matchScore >= 80) recommendation = 'highly_recommended';
       else if (matchScore >= 60) recommendation = 'recommended';
       else if (matchScore >= 40) recommendation = 'consider';
-      else recommendation = 'not_recommended';
-      
-      // Simuler disponibilité et charge de travail (à remplacer par de vraies données)
-      const availability = Math.max(100 - (matchScore < 60 ? 30 : matchScore < 80 ? 20 : 10), 20);
-      const workload = 100 - availability;
-      
-      const result = {
+      else                       recommendation = 'not_recommended';
+
+      // Dégrader si l'employé est surchargé (>= 100% de capacité)
+      if (workloadPct >= 100) {
+        recommendation = recommendation === 'highly_recommended' ? 'recommended' :
+                         recommendation === 'recommended'        ? 'consider'    : recommendation;
+      }
+      // Dégrader fortement si charge > 80% et score pas excellent
+      if (workloadPct >= 80 && matchScore < 80) {
+        recommendation = recommendation === 'highly_recommended' ? 'recommended' : recommendation;
+      }
+
+      return {
         employeeId: employee.employeeId,
         employeeName: employee.employeeName,
         matchScore,
         matchingSkills,
         missingSkills,
         availability,
-        workload,
+        workload: workloadPct,
+        activeTasks: empLoad.activeTasks,
+        activeTasksHours: Math.round(empLoad.hours * 10) / 10,
         recommendation
       };
-      
-      console.log(`  📊 Score final: ${matchScore}% - ${recommendation}`);
-      return result;
-    }).filter(rec => rec.matchScore > 0); // Filtrer les employés avec un score > 0
-    
-    // Trier par score de matching
-    recommendations.sort((a, b) => b.matchScore - a.matchScore);
+    }).filter(rec => rec.matchScore > 0);
+
+    // Trier : d'abord par score, puis par disponibilité (employé libre en premier)
+    recommendations.sort((a, b) =>
+      b.matchScore !== a.matchScore
+        ? b.matchScore - a.matchScore
+        : b.availability - a.availability
+    );
     
     console.log(`✅ ${recommendations.length} recommandations générées`);
     console.log('🏆 Meilleure recommandation:', recommendations[0]);

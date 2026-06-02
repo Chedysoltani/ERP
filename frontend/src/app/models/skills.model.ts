@@ -69,6 +69,8 @@ export interface EmployeeMatch {
   missingSkills: string[];
   availability: number;
   workload: number;
+  activeTasks?: number;
+  activeTasksHours?: number;
   recommendation: 'highly_recommended' | 'recommended' | 'consider' | 'not_recommended';
 }
 

@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy } from '@angular/core';
+import { Component, OnInit, OnDestroy, HostListener } from '@angular/core';
 import { Subject } from 'rxjs';
 import { takeUntil } from 'rxjs/operators';
 import { Router } from '@angular/router';
@@ -72,8 +72,12 @@ export class EmployeeDashboardComponent implements OnInit, OnDestroy {
     pendingTasks: 0
   };
 
-  /** Nombre de notifications de tâche non lues (assignations, etc.) */
   taskNotificationCount = 0;
+  showNotifDropdown = false;
+  notifications: Array<{
+    id: number; task_id: number; type: string;
+    message: string; is_read: boolean; created_at: string; timeAgo: string;
+  }> = [];
 
   // Données pour le dashboard
   myTasks: DisplayTask[] = [];
@@ -146,12 +150,69 @@ export class EmployeeDashboardComponent implements OnInit, OnDestroy {
     // Charger les timesheets séparément
     this.loadTimesheets();
 
-    this.employeeService.getTaskNotifications(employeeId).pipe(takeUntil(this.destroy$)).subscribe({
+    this.loadNotifications();
+  }
+
+  loadNotifications(): void {
+    const id = this.currentEmployee?.id;
+    if (!id) return;
+    this.employeeService.getTaskNotifications(id).pipe(takeUntil(this.destroy$)).subscribe({
       next: (res: any) => {
-        if (res?.success) this.taskNotificationCount = Number(res.unreadCount) || 0;
+        if (res?.success) {
+          this.notifications = (res.data || []).map((n: any) => ({
+            ...n,
+            timeAgo: this.timeAgo(n.created_at)
+          }));
+          this.taskNotificationCount = Number(res.unreadCount) || 0;
+        }
       },
       error: () => { this.taskNotificationCount = 0; }
     });
+  }
+
+  toggleNotifDropdown(event: Event): void {
+    event.stopPropagation();
+    this.showNotifDropdown = !this.showNotifDropdown;
+    if (this.showNotifDropdown && this.taskNotificationCount > 0) {
+      // Laisser 800ms pour voir les indicateurs "non lu", puis marquer tout lu en DB
+      setTimeout(() => this.markAllRead(), 800);
+    }
+  }
+
+  markRead(notif: any): void {
+    if (notif.is_read) return;
+    notif.is_read = true;
+    this.taskNotificationCount = Math.max(0, this.taskNotificationCount - 1);
+    this.employeeService.markNotificationRead(notif.id).subscribe();
+  }
+
+  markAllRead(): void {
+    const id = this.currentEmployee?.id;
+    if (!id) return;
+    this.notifications.forEach(n => n.is_read = true);
+    this.taskNotificationCount = 0;
+    this.employeeService.markAllNotificationsRead(id).subscribe();
+  }
+
+  openTask(notif: any): void {
+    this.markRead(notif);
+    this.showNotifDropdown = false;
+    this.changeSection('taches');
+  }
+
+  private timeAgo(dateStr: string): string {
+    const diff = Date.now() - new Date(dateStr).getTime();
+    const m = Math.floor(diff / 60000);
+    if (m < 1)  return 'À l\'instant';
+    if (m < 60) return `Il y a ${m} min`;
+    const h = Math.floor(m / 60);
+    if (h < 24) return `Il y a ${h}h`;
+    return `Il y a ${Math.floor(h / 24)}j`;
+  }
+
+  @HostListener('document:click')
+  closeDropdowns(): void {
+    this.showNotifDropdown = false;
   }
 
   formatTasks(tasks: any[]): DisplayTask[] {

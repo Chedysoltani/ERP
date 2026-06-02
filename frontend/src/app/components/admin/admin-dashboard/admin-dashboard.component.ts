@@ -78,12 +78,12 @@ export class AdminDashboardComponent implements OnInit, OnDestroy {
   settingsSaved = false;
   permissionsSaved = false;
 
-  // Notifications
-  notifications = [
-    { id: 1, icon: 'bi-person-plus', text: 'Nouvel utilisateur inscrit', time: 'Il y a 5 min', read: false, color: 'success' },
-    { id: 2, icon: 'bi-shield-exclamation', text: 'Tentative de connexion échouée', time: 'Il y a 22 min', read: false, color: 'warning' },
-    { id: 3, icon: 'bi-check-circle', text: 'Sauvegarde système complète', time: 'Il y a 1h', read: true, color: 'info' }
-  ];
+  // Notifications dynamiques
+  notifications: Array<{
+    id: string; icon: string; text: string; detail: string;
+    time: string; color: string; read: boolean;
+  }> = [];
+  private readNotifIds = new Set<string>();
 
   private statsInterval: any;
   private animationFrames: number[] = [];
@@ -105,8 +105,9 @@ export class AdminDashboardComponent implements OnInit, OnDestroy {
   constructor(private adminAuth: AdminAuthService, private router: Router) {}
 
   ngOnInit(): void {
+    this.loadReadIds();
     this.loadAll();
-    this.statsInterval = setInterval(() => this.loadStats(), 30000);
+    this.statsInterval = setInterval(() => { this.loadStats(); this.loadNotifications(); }, 30000);
   }
 
   ngOnDestroy(): void {
@@ -122,6 +123,54 @@ export class AdminDashboardComponent implements OnInit, OnDestroy {
     this.loadGrowth();
     this.loadPermissions();
     this.loadSettingsFromDB();
+    this.loadNotifications();
+  }
+
+  private loadReadIds(): void {
+    try {
+      const stored = localStorage.getItem('adminNotifRead');
+      if (stored) this.readNotifIds = new Set(JSON.parse(stored));
+    } catch (_) {}
+  }
+
+  private saveReadIds(): void {
+    localStorage.setItem('adminNotifRead', JSON.stringify([...this.readNotifIds]));
+  }
+
+  loadNotifications(): void {
+    this.adminAuth.getNotifications().subscribe({
+      next: res => {
+        if (res.success) {
+          this.notifications = res.data.map((n: any) => ({
+            ...n,
+            time: this.timeAgo(n.time),
+            read: this.readNotifIds.has(n.id)
+          }));
+        }
+      }
+    });
+  }
+
+  markNotifRead(notif: any): void {
+    notif.read = true;
+    this.readNotifIds.add(notif.id);
+    this.saveReadIds();
+  }
+
+  markAllRead(): void {
+    this.notifications.forEach(n => { n.read = true; this.readNotifIds.add(n.id); });
+    this.saveReadIds();
+  }
+
+  timeAgo(dateStr: string): string {
+    const diff = Date.now() - new Date(dateStr).getTime();
+    const m = Math.floor(diff / 60000);
+    if (m < 1)  return 'À l\'instant';
+    if (m < 60) return `Il y a ${m} min`;
+    const h = Math.floor(m / 60);
+    if (h < 24) return `Il y a ${h}h`;
+    const d = Math.floor(h / 24);
+    return `Il y a ${d}j`;
   }
 
   loadStats(): void {

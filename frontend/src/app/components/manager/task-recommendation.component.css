@@ -455,6 +455,15 @@
   min-width: 40px;
 }
 
+.active-tasks-badge {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 12px; font-weight: 600;
+  padding: 3px 10px; border-radius: 8px;
+}
+.active-tasks-badge.free     { background: rgba(16,185,129,0.12); color: #10b981; border: 1px solid rgba(16,185,129,0.25); }
+.active-tasks-badge.moderate { background: rgba(245,158,11,0.12); color: #f59e0b; border: 1px solid rgba(245,158,11,0.25); }
+.active-tasks-badge.busy     { background: rgba(244,63,94,0.12);  color: #f43f5e; border: 1px solid rgba(244,63,94,0.25);  }
+
 .availability-text,
 .workload-text {
   font-size: 12px;

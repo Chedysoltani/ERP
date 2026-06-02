@@ -255,30 +255,32 @@ router.get('/:employeeId/timesheets', async (req, res) => {
     const employeeId = parseInt(req.params.employeeId);
     
     const timesheets = await db.query(`
-      SELECT 
+      SELECT
         t.id,
         t.date,
         t.hours,
         t.description,
         t.status,
         t.created_at,
-        t.updated_at,
-        p.name as project_name
+        COALESCE(p.name, 'Non assigné') as project_name
       FROM timesheets t
       LEFT JOIN projects p ON t.project_id = p.id
       WHERE t.employee_id = ?
       ORDER BY t.date DESC, t.created_at DESC
     `, [employeeId]);
 
-    // Transformer les résultats pour le frontend
-    const formattedTimesheets = timesheets.map(row => ({
-      id: row.id,
-      date: new Date(row.date).toLocaleDateString('fr-FR'),
-      project: row.project_name || 'Non spécifié',
-      hours: row.hours,
-      description: row.description || '',
-      status: row.status
-    }));
+    const formattedTimesheets = timesheets.map(row => {
+      const d = row.date ? new Date(row.date) : null;
+      return {
+        id: row.id,
+        date_raw: d ? d.toISOString().split('T')[0] : null,
+        project: row.project_name,
+        task_title: null,
+        hours: parseFloat(row.hours) || 0,
+        description: row.description || '',
+        status: row.status || 'pending'
+      };
+    });
 
     res.json({
       success: true,

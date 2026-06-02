@@ -118,6 +118,10 @@ export class AdminAuthService {
     return this.http.get(`${this.apiUrl}/admin/growth`, { headers: this.headers() });
   }
 
+  getNotifications(): Observable<any> {
+    return this.http.get(`${this.apiUrl}/admin/notifications`, { headers: this.headers() });
+  }
+
   getPermissions(): Observable<any> {
     return this.http.get(`${this.apiUrl}/admin/permissions`, { headers: this.headers() });
   }

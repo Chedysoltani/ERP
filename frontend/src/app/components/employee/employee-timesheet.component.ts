@@ -1,33 +1,30 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { EmployeeService } from '../../services/employee.service';
 
 interface TimesheetEntry {
   id: number;
-  date: string;
-  task_title: string;
-  project_name: string;
+  date_raw: string;
+  project: string;
+  task_title: string | null;
   hours: number;
   description: string;
-  status: 'draft' | 'submitted' | 'approved' | 'rejected';
-  start_time: string;
-  end_time: string;
-  duration_seconds: number;
+  status: 'pending' | 'submitted' | 'approved' | 'rejected';
 }
 
-interface DailySummary {
+interface DaySummary {
   date: string;
   totalHours: number;
-  totalSeconds: number;
   entries: TimesheetEntry[];
 }
 
-interface WeeklySummary {
+interface WeekSummary {
+  label: string;
   weekStart: string;
   weekEnd: string;
   totalHours: number;
-  totalSeconds: number;
-  dailySummaries: DailySummary[];
+  days: DaySummary[];
 }
 
 @Component({
@@ -35,819 +32,544 @@ interface WeeklySummary {
   standalone: true,
   imports: [CommonModule, FormsModule],
   template: `
-    <div class="employee-timesheet">
-      <div class="timesheet-header">
-        <h3><i class="bi bi-clock-history"></i> Historique des Temps</h3>
-        <div class="view-toggle">
-          <button
-            class="toggle-btn"
-            [class.active]="viewMode === 'daily'"
-            (click)="setViewMode('daily')">
-            Vue Journalière
-          </button>
-          <button
-            class="toggle-btn"
-            [class.active]="viewMode === 'weekly'"
-            (click)="setViewMode('weekly')">
-            Vue Hebdomadaire
-          </button>
-        </div>
-      </div>
+<div class="ts-wrap">
 
-      <!-- Filters -->
-      <div class="filters-section">
-        <div class="filter-group">
-          <label>Période:</label>
-          <select [(ngModel)]="selectedPeriod" (change)="loadTimesheetData()">
-            <option value="current_week">Cette semaine</option>
-            <option value="last_week">Semaine dernière</option>
-            <option value="current_month">Ce mois</option>
-            <option value="last_month">Mois dernier</option>
-            <option value="last_30_days">30 derniers jours</option>
-          </select>
-        </div>
-        <div class="filter-group">
-          <label>Statut:</label>
-          <select [(ngModel)]="selectedStatus" (change)="filterEntries()">
-            <option value="all">Tous</option>
-            <option value="draft">Brouillon</option>
-            <option value="submitted">Soumis</option>
-            <option value="approved">Approuvé</option>
-            <option value="rejected">Rejeté</option>
-          </select>
-        </div>
-      </div>
+  <!-- Header -->
+  <div class="ts-header">
+    <div class="ts-title">
+      <i class="bi bi-clock-history"></i>
+      <span>Mes Timesheets</span>
+      <span class="ts-total-badge" *ngIf="!loading">{{ filtered.length }} entrée{{ filtered.length !== 1 ? 's' : '' }}</span>
+    </div>
+    <div class="ts-view-switch">
+      <button [class.active]="view==='daily'" (click)="view='daily'">Journalier</button>
+      <button [class.active]="view==='weekly'" (click)="view='weekly'">Hebdomadaire</button>
+    </div>
+  </div>
 
-      <!-- Daily View -->
-      <div *ngIf="viewMode === 'daily'" class="daily-view">
-        <div class="daily-entries">
-          <div *ngFor="let entry of filteredEntries" class="timesheet-entry">
-            <div class="entry-header">
-              <div class="entry-date">
-                <i class="bi bi-calendar-day"></i>
-                {{ formatDate(entry.date) }}
-              </div>
-              <div class="entry-status" [class]="'status-' + entry.status">
-                {{ getStatusLabel(entry.status) }}
-              </div>
-            </div>
+  <!-- Filtres -->
+  <div class="ts-filters">
+    <div class="ts-filter-item">
+      <label>Période</label>
+      <select [(ngModel)]="period" (ngModelChange)="applyFilters()">
+        <option value="current_week">Cette semaine</option>
+        <option value="last_week">Semaine dernière</option>
+        <option value="current_month">Ce mois</option>
+        <option value="last_month">Mois dernier</option>
+        <option value="last_30_days">30 derniers jours</option>
+        <option value="all">Tout</option>
+      </select>
+    </div>
+    <div class="ts-filter-item">
+      <label>Statut</label>
+      <select [(ngModel)]="statusFilter" (ngModelChange)="applyFilters()">
+        <option value="all">Tous</option>
+        <option value="pending">En attente</option>
+        <option value="submitted">Soumis</option>
+        <option value="approved">Approuvé</option>
+        <option value="rejected">Rejeté</option>
+      </select>
+    </div>
+    <button class="ts-refresh-btn" (click)="load()" title="Actualiser">
+      <i class="bi bi-arrow-clockwise" [class.spin]="loading"></i>
+    </button>
+  </div>
 
-            <div class="entry-content">
-              <div class="entry-task">
-                <strong>{{ entry.task_title }}</strong>
-                <span class="project-name">{{ entry.project_name }}</span>
-              </div>
+  <!-- Loading skeleton -->
+  <div class="ts-skeleton" *ngIf="loading">
+    <div class="sk-row" *ngFor="let i of [1,2,3]">
+      <div class="sk-block sk-date"></div>
+      <div class="sk-block sk-title"></div>
+      <div class="sk-block sk-hours"></div>
+      <div class="sk-block sk-status"></div>
+    </div>
+  </div>
 
-              <div class="entry-time">
-                <div class="time-range">
-                  <i class="bi bi-clock"></i>
-                  {{ formatTime(entry.start_time) }} - {{ formatTime(entry.end_time) }}
-                </div>
-                <div class="duration">
-                  <i class="bi bi-stopwatch"></i>
-                  {{ formatDuration(entry.duration_seconds) }}
-                </div>
-              </div>
+  <!-- Contenu -->
+  <ng-container *ngIf="!loading">
 
-              <div class="entry-description" *ngIf="entry.description">
-                {{ entry.description }}
-              </div>
-            </div>
+    <!-- ── Vue journalière ── -->
+    <div *ngIf="view==='daily'" class="ts-daily">
+      <div class="ts-day-group" *ngFor="let day of daySummaries">
+        <div class="ts-day-header">
+          <div class="ts-day-label">
+            <i class="bi bi-calendar3"></i>
+            {{ formatDate(day.date) }}
+          </div>
+          <div class="ts-day-total">
+            <i class="bi bi-clock"></i> {{ day.totalHours.toFixed(1) }}h
           </div>
         </div>
-
-        <!-- Daily Summary -->
-        <div class="daily-summary" *ngIf="dailySummaries.length > 0">
-          <h4>Résumé Journalier</h4>
-          <div class="summary-grid">
-            <div *ngFor="let summary of dailySummaries" class="summary-card">
-              <div class="summary-date">{{ formatDate(summary.date) }}</div>
-              <div class="summary-hours">{{ formatDuration(summary.totalSeconds) }}</div>
-              <div class="summary-entries">{{ summary.entries.length }} session(s)</div>
+        <div class="ts-entry" *ngFor="let e of day.entries">
+          <div class="ts-entry-left">
+            <div class="ts-entry-task">{{ e.task_title || e.description || 'Entrée' }}</div>
+            <div class="ts-entry-project">
+              <i class="bi bi-folder2"></i> {{ e.project }}
             </div>
+            <div class="ts-entry-desc" *ngIf="e.description && e.task_title">{{ e.description }}</div>
+          </div>
+          <div class="ts-entry-right">
+            <div class="ts-entry-hours">{{ e.hours.toFixed(2) }}h</div>
+            <div class="ts-status" [class]="'ts-status-' + e.status">{{ statusLabel(e.status) }}</div>
           </div>
         </div>
       </div>
 
-      <!-- Weekly View -->
-      <div *ngIf="viewMode === 'weekly'" class="weekly-view">
-        <div class="weekly-entries">
-          <div *ngFor="let week of weeklySummaries" class="week-summary">
-            <div class="week-header">
-              <h4>{{ formatWeekRange(week.weekStart, week.weekEnd) }}</h4>
-              <div class="week-total">{{ formatDuration(week.totalSeconds) }}</div>
-            </div>
-
-            <div class="week-details">
-              <div *ngFor="let day of week.dailySummaries" class="day-summary">
-                <div class="day-name">{{ formatDayName(day.date) }}</div>
-                <div class="day-date">{{ formatDate(day.date) }}</div>
-                <div class="day-hours">{{ formatDuration(day.totalSeconds) }}</div>
-                <div class="day-entries">{{ day.entries.length }} session(s)</div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Statistics -->
-      <div class="statistics-section">
-        <h4><i class="bi bi-bar-chart"></i> Statistiques</h4>
-        <div class="stats-grid">
-          <div class="stat-card">
-            <div class="stat-icon blue">
-              <i class="bi bi-clock-history"></i>
-            </div>
-            <div class="stat-content">
-              <h3>{{ formatDuration(totalSeconds) }}</h3>
-              <p>Total travaillé</p>
-            </div>
-          </div>
-
-          <div class="stat-card">
-            <div class="stat-icon green">
-              <i class="bi bi-calendar-check"></i>
-            </div>
-            <div class="stat-content">
-              <h3>{{ totalEntries }}</h3>
-              <p>Sessions</p>
-            </div>
-          </div>
-
-          <div class="stat-card">
-            <div class="stat-icon orange">
-              <i class="bi bi-graph-up"></i>
-            </div>
-            <div class="stat-content">
-              <h3>{{ averageHoursPerDay.toFixed(1) }}h</h3>
-              <p>Moyenne/jour</p>
-            </div>
-          </div>
-
-          <div class="stat-card">
-            <div class="stat-icon purple">
-              <i class="bi bi-trophy"></i>
-            </div>
-            <div class="stat-content">
-              <h3>{{ formatDuration(maxDaySeconds) }}</h3>
-              <p>Journée record</p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- No Data Message -->
-      <div class="no-data-message" *ngIf="filteredEntries.length === 0">
+      <!-- Empty -->
+      <div class="ts-empty" *ngIf="daySummaries.length === 0">
         <i class="bi bi-calendar-x"></i>
-        <h4>Aucune donnée</h4>
-        <p>Vous n'avez pas encore enregistré de temps de travail pour cette période.</p>
+        <p>Aucune entrée pour cette période</p>
+        <span>Les timesheets sont créés automatiquement lorsque vous terminez une session de travail sur une tâche.</span>
       </div>
     </div>
+
+    <!-- ── Vue hebdomadaire ── -->
+    <div *ngIf="view==='weekly'" class="ts-weekly">
+      <div class="ts-week-card" *ngFor="let week of weekSummaries">
+        <div class="ts-week-header">
+          <div class="ts-week-label">
+            <i class="bi bi-calendar-week"></i> {{ week.label }}
+          </div>
+          <div class="ts-week-total">{{ week.totalHours.toFixed(1) }}h au total</div>
+        </div>
+        <div class="ts-week-days">
+          <div class="ts-week-day" *ngFor="let day of week.days">
+            <div class="ts-wd-name">{{ dayName(day.date) }}</div>
+            <div class="ts-wd-date">{{ shortDate(day.date) }}</div>
+            <div class="ts-wd-hours" [class.has-hours]="day.totalHours > 0">
+              {{ day.totalHours > 0 ? day.totalHours.toFixed(1) + 'h' : '—' }}
+            </div>
+            <div class="ts-wd-sessions">{{ day.entries.length > 0 ? day.entries.length + ' session' + (day.entries.length > 1 ? 's' : '') : '' }}</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="ts-empty" *ngIf="weekSummaries.length === 0">
+        <i class="bi bi-calendar-x"></i>
+        <p>Aucune entrée pour cette période</p>
+      </div>
+    </div>
+
+    <!-- ── Statistiques ── -->
+    <div class="ts-stats" *ngIf="filtered.length > 0">
+      <div class="ts-stat-card">
+        <div class="ts-stat-icon blue"><i class="bi bi-clock-history"></i></div>
+        <div class="ts-stat-body">
+          <div class="ts-stat-val">{{ totalHours.toFixed(1) }}h</div>
+          <div class="ts-stat-lbl">Total travaillé</div>
+        </div>
+      </div>
+      <div class="ts-stat-card">
+        <div class="ts-stat-icon green"><i class="bi bi-calendar-check"></i></div>
+        <div class="ts-stat-body">
+          <div class="ts-stat-val">{{ filtered.length }}</div>
+          <div class="ts-stat-lbl">Entrées</div>
+        </div>
+      </div>
+      <div class="ts-stat-card">
+        <div class="ts-stat-icon orange"><i class="bi bi-graph-up"></i></div>
+        <div class="ts-stat-body">
+          <div class="ts-stat-val">{{ avgPerDay.toFixed(1) }}h</div>
+          <div class="ts-stat-lbl">Moyenne / jour</div>
+        </div>
+      </div>
+      <div class="ts-stat-card">
+        <div class="ts-stat-icon purple"><i class="bi bi-trophy"></i></div>
+        <div class="ts-stat-body">
+          <div class="ts-stat-val">{{ maxDayHours.toFixed(1) }}h</div>
+          <div class="ts-stat-lbl">Meilleure journée</div>
+        </div>
+      </div>
+      <div class="ts-stat-card">
+        <div class="ts-stat-icon emerald"><i class="bi bi-check-circle"></i></div>
+        <div class="ts-stat-body">
+          <div class="ts-stat-val">{{ approvedCount }}</div>
+          <div class="ts-stat-lbl">Approuvées</div>
+        </div>
+      </div>
+    </div>
+
+  </ng-container>
+</div>
   `,
   styles: [`
-    .employee-timesheet {
-      background: white;
-      border-radius: 16px;
-      padding: 24px;
-      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
-      border: 1px solid #e5e7eb;
-    }
+.ts-wrap {
+  background: #0f172a;
+  border: 1px solid rgba(99,102,241,0.12);
+  border-radius: 16px;
+  padding: 24px;
+  font-family: 'Inter', sans-serif;
+}
 
-    .timesheet-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 24px;
-      padding-bottom: 16px;
-      border-bottom: 1px solid #e5e7eb;
-    }
+/* ── Header ── */
+.ts-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 20px; flex-wrap: wrap; gap: 12px;
+}
+.ts-title {
+  display: flex; align-items: center; gap: 10px;
+  font-size: 17px; font-weight: 700; color: #f1f5f9;
+}
+.ts-title i { color: #6366f1; font-size: 18px; }
+.ts-total-badge {
+  background: rgba(99,102,241,0.12); color: #818cf8;
+  font-size: 11px; font-weight: 600;
+  padding: 2px 8px; border-radius: 20px;
+  border: 1px solid rgba(99,102,241,0.2);
+}
+.ts-view-switch {
+  display: flex; background: rgba(30,41,59,0.6);
+  border: 1px solid rgba(99,102,241,0.15);
+  border-radius: 8px; padding: 3px; gap: 2px;
+}
+.ts-view-switch button {
+  background: none; border: none; border-radius: 6px;
+  padding: 6px 14px; font-size: 12px; font-weight: 500;
+  color: #64748b; cursor: pointer; transition: all 0.2s;
+  font-family: inherit;
+}
+.ts-view-switch button.active {
+  background: rgba(99,102,241,0.2); color: #a5b4fc;
+}
 
-    .timesheet-header h3 {
-      margin: 0;
-      font-size: 20px;
-      font-weight: 700;
-      color: #1f2937;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
+/* ── Filtres ── */
+.ts-filters {
+  display: flex; align-items: flex-end; gap: 12px;
+  margin-bottom: 20px; flex-wrap: wrap;
+}
+.ts-filter-item { display: flex; flex-direction: column; gap: 5px; }
+.ts-filter-item label { font-size: 11px; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; }
+.ts-filter-item select {
+  background: rgba(30,41,59,0.6);
+  border: 1px solid rgba(99,102,241,0.15);
+  border-radius: 8px; padding: 7px 12px;
+  color: #e2e8f0; font-size: 13px; outline: none;
+  cursor: pointer; font-family: inherit;
+  transition: border-color 0.2s;
+}
+.ts-filter-item select:focus { border-color: #6366f1; }
+.ts-refresh-btn {
+  background: rgba(99,102,241,0.1);
+  border: 1px solid rgba(99,102,241,0.2);
+  border-radius: 8px; width: 34px; height: 34px;
+  display: flex; align-items: center; justify-content: center;
+  color: #6366f1; cursor: pointer; font-size: 15px;
+  transition: all 0.2s; align-self: flex-end;
+}
+.ts-refresh-btn:hover { background: rgba(99,102,241,0.2); }
+.spin { animation: spin 0.8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
 
-    .view-toggle {
-      display: flex;
-      background: #f3f4f6;
-      border-radius: 8px;
-      padding: 4px;
-    }
+/* ── Skeleton ── */
+.ts-skeleton { display: flex; flex-direction: column; gap: 12px; }
+.sk-row {
+  display: flex; align-items: center; gap: 12px;
+  padding: 16px; background: rgba(30,41,59,0.4);
+  border: 1px solid rgba(99,102,241,0.08);
+  border-radius: 12px;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+.sk-block { background: rgba(99,102,241,0.1); border-radius: 6px; height: 14px; }
+.sk-date  { width: 90px; }
+.sk-title { flex: 1; }
+.sk-hours { width: 50px; }
+.sk-status{ width: 70px; }
 
-    .toggle-btn {
-      background: transparent;
-      border: none;
-      padding: 8px 16px;
-      border-radius: 6px;
-      font-size: 14px;
-      font-weight: 500;
-      cursor: pointer;
-      transition: all 0.2s;
-      color: #6b7280;
-    }
+/* ── Daily view ── */
+.ts-daily { display: flex; flex-direction: column; gap: 16px; }
+.ts-day-group {
+  background: rgba(15,23,42,0.6);
+  border: 1px solid rgba(99,102,241,0.1);
+  border-radius: 12px; overflow: hidden;
+}
+.ts-day-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 16px;
+  background: rgba(99,102,241,0.07);
+  border-bottom: 1px solid rgba(99,102,241,0.08);
+}
+.ts-day-label {
+  display: flex; align-items: center; gap: 7px;
+  font-size: 13px; font-weight: 600; color: #a5b4fc;
+}
+.ts-day-total {
+  display: flex; align-items: center; gap: 5px;
+  font-size: 13px; font-weight: 700; color: #6366f1;
+}
+.ts-entry {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid rgba(255,255,255,0.03);
+  gap: 12px; transition: background 0.15s;
+}
+.ts-entry:last-child { border-bottom: none; }
+.ts-entry:hover { background: rgba(99,102,241,0.04); }
+.ts-entry-left { flex: 1; min-width: 0; }
+.ts-entry-task {
+  font-size: 13px; font-weight: 600; color: #e2e8f0;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  margin-bottom: 3px;
+}
+.ts-entry-project {
+  display: flex; align-items: center; gap: 5px;
+  font-size: 11px; color: #475569;
+}
+.ts-entry-project i { color: #6366f1; }
+.ts-entry-desc {
+  font-size: 11px; color: #475569; margin-top: 3px;
+  font-style: italic;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.ts-entry-right { display: flex; align-items: center; gap: 10px; white-space: nowrap; }
+.ts-entry-hours { font-size: 14px; font-weight: 700; color: #818cf8; }
 
-    .toggle-btn.active {
-      background: white;
-      color: #1f2937;
-      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-    }
+/* Status */
+.ts-status {
+  font-size: 10px; font-weight: 700; padding: 3px 8px;
+  border-radius: 6px; text-transform: uppercase; letter-spacing: 0.05em;
+}
+.ts-status-pending   { background: rgba(100,116,139,0.15); color: #94a3b8; border: 1px solid rgba(100,116,139,0.2); }
+.ts-status-submitted { background: rgba(14,165,233,0.12);  color: #38bdf8; border: 1px solid rgba(14,165,233,0.2); }
+.ts-status-approved  { background: rgba(16,185,129,0.12);  color: #34d399; border: 1px solid rgba(16,185,129,0.2); }
+.ts-status-rejected  { background: rgba(244,63,94,0.12);   color: #fb7185; border: 1px solid rgba(244,63,94,0.2); }
 
-    .filters-section {
-      display: flex;
-      gap: 20px;
-      margin-bottom: 24px;
-      padding: 20px;
-      background: #f9fafb;
-      border-radius: 12px;
-      border: 1px solid #e5e7eb;
-    }
+/* ── Weekly view ── */
+.ts-weekly { display: flex; flex-direction: column; gap: 14px; }
+.ts-week-card {
+  background: rgba(15,23,42,0.6);
+  border: 1px solid rgba(99,102,241,0.1);
+  border-radius: 12px; overflow: hidden;
+}
+.ts-week-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 16px;
+  background: rgba(99,102,241,0.07);
+  border-bottom: 1px solid rgba(99,102,241,0.08);
+}
+.ts-week-label {
+  display: flex; align-items: center; gap: 7px;
+  font-size: 13px; font-weight: 600; color: #a5b4fc;
+}
+.ts-week-total { font-size: 13px; font-weight: 700; color: #6366f1; }
+.ts-week-days {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+  gap: 1px; background: rgba(99,102,241,0.05); padding: 12px; gap: 8px;
+}
+.ts-week-day {
+  background: rgba(30,41,59,0.4);
+  border: 1px solid rgba(99,102,241,0.08);
+  border-radius: 8px; padding: 10px 8px; text-align: center;
+}
+.ts-wd-name { font-size: 10px; font-weight: 600; color: #475569; text-transform: uppercase; letter-spacing: 0.05em; }
+.ts-wd-date { font-size: 12px; color: #94a3b8; margin: 3px 0; }
+.ts-wd-hours { font-size: 16px; font-weight: 700; color: #475569; }
+.ts-wd-hours.has-hours { color: #6366f1; }
+.ts-wd-sessions { font-size: 10px; color: #334155; margin-top: 3px; }
 
-    .filter-group {
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-    }
+/* ── Empty ── */
+.ts-empty {
+  display: flex; flex-direction: column; align-items: center;
+  gap: 10px; padding: 48px 20px; text-align: center;
+}
+.ts-empty i { font-size: 40px; color: #334155; }
+.ts-empty p { font-size: 15px; font-weight: 600; color: #475569; margin: 0; }
+.ts-empty span { font-size: 12px; color: #334155; max-width: 320px; line-height: 1.5; }
 
-    .filter-group label {
-      font-size: 14px;
-      font-weight: 600;
-      color: #374151;
-    }
+/* ── Stats ── */
+.ts-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 12px; margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid rgba(99,102,241,0.1);
+}
+.ts-stat-card {
+  display: flex; align-items: center; gap: 12px;
+  background: rgba(15,23,42,0.6);
+  border: 1px solid rgba(99,102,241,0.08);
+  border-radius: 12px; padding: 14px;
+  transition: transform 0.2s;
+}
+.ts-stat-card:hover { transform: translateY(-2px); }
+.ts-stat-icon {
+  width: 38px; height: 38px; min-width: 38px;
+  border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 16px;
+}
+.ts-stat-icon.blue    { background: rgba(59,130,246,0.15);  color: #60a5fa; }
+.ts-stat-icon.green   { background: rgba(16,185,129,0.15);  color: #34d399; }
+.ts-stat-icon.orange  { background: rgba(245,158,11,0.15);  color: #fbbf24; }
+.ts-stat-icon.purple  { background: rgba(139,92,246,0.15);  color: #a78bfa; }
+.ts-stat-icon.emerald { background: rgba(16,185,129,0.12);  color: #6ee7b7; }
+.ts-stat-val { font-size: 20px; font-weight: 800; color: #f1f5f9; line-height: 1; }
+.ts-stat-lbl { font-size: 11px; color: #64748b; margin-top: 3px; text-transform: uppercase; letter-spacing: 0.05em; }
 
-    .filter-group select {
-      padding: 8px 12px;
-      border: 1px solid #d1d5db;
-      border-radius: 8px;
-      font-size: 14px;
-      background: white;
-    }
-
-    .daily-entries {
-      margin-bottom: 32px;
-    }
-
-    .timesheet-entry {
-      background: #f9fafb;
-      border: 1px solid #e5e7eb;
-      border-radius: 12px;
-      padding: 20px;
-      margin-bottom: 16px;
-    }
-
-    .entry-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 16px;
-    }
-
-    .entry-date {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      font-size: 14px;
-      font-weight: 600;
-      color: #1f2937;
-    }
-
-    .entry-status {
-      padding: 6px 12px;
-      border-radius: 20px;
-      font-size: 11px;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-    }
-
-    .status-draft {
-      background: #e5e7eb;
-      color: #374151;
-    }
-
-    .status-submitted {
-      background: #dbeafe;
-      color: #1e40af;
-    }
-
-    .status-approved {
-      background: #dcfce7;
-      color: #166534;
-    }
-
-    .status-rejected {
-      background: #fef2f2;
-      color: #dc2626;
-    }
-
-    .entry-content {
-      display: grid;
-      grid-template-columns: 1fr auto;
-      gap: 16px;
-      align-items: start;
-    }
-
-    .entry-task {
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-    }
-
-    .entry-task strong {
-      font-size: 16px;
-      color: #1f2937;
-    }
-
-    .project-name {
-      font-size: 12px;
-      color: #6b7280;
-      background: #e5e7eb;
-      padding: 2px 6px;
-      border-radius: 4px;
-      align-self: flex-start;
-    }
-
-    .entry-time {
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-      text-align: right;
-    }
-
-    .time-range, .duration {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      font-size: 14px;
-      color: #374151;
-      font-weight: 500;
-    }
-
-    .entry-description {
-      grid-column: 1 / -1;
-      margin-top: 12px;
-      padding: 12px;
-      background: white;
-      border-radius: 8px;
-      border-left: 3px solid #3b82f6;
-      font-size: 14px;
-      color: #6b7280;
-      font-style: italic;
-    }
-
-    .daily-summary h4 {
-      margin: 0 0 16px 0;
-      font-size: 16px;
-      font-weight: 600;
-      color: #374151;
-    }
-
-    .summary-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-      gap: 16px;
-    }
-
-    .summary-card {
-      background: #f9fafb;
-      padding: 16px;
-      border-radius: 12px;
-      border: 1px solid #e5e7eb;
-      text-align: center;
-    }
-
-    .summary-date {
-      font-size: 14px;
-      font-weight: 600;
-      color: #1f2937;
-      margin-bottom: 8px;
-    }
-
-    .summary-hours {
-      font-size: 18px;
-      font-weight: 700;
-      color: #3b82f6;
-      margin-bottom: 4px;
-    }
-
-    .summary-entries {
-      font-size: 12px;
-      color: #6b7280;
-    }
-
-    .weekly-view {
-      margin-bottom: 32px;
-    }
-
-    .week-summary {
-      background: #f9fafb;
-      border: 1px solid #e5e7eb;
-      border-radius: 12px;
-      padding: 20px;
-      margin-bottom: 16px;
-    }
-
-    .week-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 16px;
-      padding-bottom: 12px;
-      border-bottom: 1px solid #e5e7eb;
-    }
-
-    .week-header h4 {
-      margin: 0;
-      font-size: 16px;
-      font-weight: 600;
-      color: #1f2937;
-    }
-
-    .week-total {
-      font-size: 18px;
-      font-weight: 700;
-      color: #3b82f6;
-    }
-
-    .week-details {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-      gap: 12px;
-    }
-
-    .day-summary {
-      background: white;
-      padding: 12px;
-      border-radius: 8px;
-      border: 1px solid #e5e7eb;
-      text-align: center;
-    }
-
-    .day-name {
-      font-size: 12px;
-      font-weight: 600;
-      color: #6b7280;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-      margin-bottom: 4px;
-    }
-
-    .day-date {
-      font-size: 14px;
-      font-weight: 500;
-      color: #374151;
-      margin-bottom: 8px;
-    }
-
-    .day-hours {
-      font-size: 16px;
-      font-weight: 700;
-      color: #3b82f6;
-      margin-bottom: 4px;
-    }
-
-    .day-entries {
-      font-size: 11px;
-      color: #6b7280;
-    }
-
-    .statistics-section {
-      padding-top: 24px;
-      border-top: 1px solid #e5e7eb;
-    }
-
-    .statistics-section h4 {
-      margin: 0 0 20px 0;
-      font-size: 18px;
-      font-weight: 600;
-      color: #1f2937;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-
-    .stats-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-      gap: 16px;
-    }
-
-    .stat-card {
-      background: #f9fafb;
-      border: 1px solid #e5e7eb;
-      border-radius: 12px;
-      padding: 20px;
-      display: flex;
-      align-items: center;
-      gap: 16px;
-    }
-
-    .stat-icon {
-      width: 48px;
-      height: 48px;
-      border-radius: 12px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 20px;
-    }
-
-    .stat-icon.blue {
-      background: linear-gradient(135deg, #3b82f6, #1d4ed8);
-      color: white;
-    }
-
-    .stat-icon.green {
-      background: linear-gradient(135deg, #10b981, #059669);
-      color: white;
-    }
-
-    .stat-icon.orange {
-      background: linear-gradient(135deg, #f59e0b, #d97706);
-      color: white;
-    }
-
-    .stat-icon.purple {
-      background: linear-gradient(135deg, #8b5cf6, #7c3aed);
-      color: white;
-    }
-
-    .stat-content h3 {
-      margin: 0 0 4px 0;
-      font-size: 24px;
-      font-weight: 700;
-      color: #1f2937;
-    }
-
-    .stat-content p {
-      margin: 0;
-      font-size: 12px;
-      color: #6b7280;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-      font-weight: 600;
-    }
-
-    .no-data-message {
-      text-align: center;
-      padding: 60px 20px;
-      color: #6b7280;
-    }
-
-    .no-data-message i {
-      font-size: 48px;
-      display: block;
-      margin-bottom: 16px;
-      opacity: 0.5;
-    }
-
-    .no-data-message h4 {
-      margin: 0 0 8px 0;
-      font-size: 18px;
-      font-weight: 600;
-      color: #374151;
-    }
-
-    .no-data-message p {
-      margin: 0;
-      font-size: 14px;
-    }
-
-    /* Responsive */
-    @media (max-width: 768px) {
-      .timesheet-header {
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 12px;
-      }
-
-      .filters-section {
-        flex-direction: column;
-        gap: 16px;
-      }
-
-      .entry-content {
-        grid-template-columns: 1fr;
-        gap: 12px;
-      }
-
-      .entry-time {
-        text-align: left;
-      }
-
-      .stats-grid {
-        grid-template-columns: 1fr;
-      }
-
-      .week-details {
-        grid-template-columns: 1fr;
-      }
-    }
+@media (max-width: 640px) {
+  .ts-header { flex-direction: column; align-items: flex-start; }
+  .ts-filters { flex-direction: column; }
+  .ts-stats { grid-template-columns: 1fr 1fr; }
+  .ts-entry { flex-direction: column; align-items: flex-start; }
+  .ts-entry-right { align-self: flex-end; }
+}
   `]
 })
 export class EmployeeTimesheetComponent implements OnInit {
-  viewMode: 'daily' | 'weekly' = 'daily';
-  selectedPeriod: string = 'current_week';
-  selectedStatus: string = 'all';
+  view: 'daily' | 'weekly' = 'daily';
+  period = 'current_week';
+  statusFilter = 'all';
+  loading = false;
 
-  timesheetEntries: TimesheetEntry[] = [];
-  filteredEntries: TimesheetEntry[] = [];
-  dailySummaries: DailySummary[] = [];
-  weeklySummaries: WeeklySummary[] = [];
+  private employeeId: number | null = null;
+  private allEntries: TimesheetEntry[] = [];
+  filtered: TimesheetEntry[] = [];
+  daySummaries: DaySummary[] = [];
+  weekSummaries: WeekSummary[] = [];
 
-  constructor() {}
+  constructor(private employeeService: EmployeeService) {}
 
-  ngOnInit() {
-    this.loadTimesheetData();
+  ngOnInit(): void {
+    try {
+      const stored = localStorage.getItem('currentEmployee');
+      if (stored) this.employeeId = JSON.parse(stored)?.id ?? null;
+    } catch (_) {}
+    this.load();
   }
 
-  loadTimesheetData() {
-    // Simulation des données - à remplacer par un appel API réel
-    this.timesheetEntries = [
-      {
-        id: 1,
-        date: '2024-01-08',
-        task_title: 'Finaliser le rapport mensuel',
-        project_name: 'Rapports Financiers',
-        hours: 2.5,
-        description: 'Travail sur les données financières du mois',
-        status: 'approved',
-        start_time: '09:00',
-        end_time: '11:30',
-        duration_seconds: 9000
+  load(): void {
+    if (!this.employeeId) return;
+    this.loading = true;
+    this.employeeService.getEmployeeTimesheets(this.employeeId).subscribe({
+      next: (res: any) => {
+        this.loading = false;
+        if (res?.success) {
+          this.allEntries = res.data || [];
+          this.applyFilters();
+        }
       },
-      {
-        id: 2,
-        date: '2024-01-08',
-        task_title: 'Réunion client - Présentation',
-        project_name: 'Projet Alpha',
-        hours: 1.0,
-        description: 'Préparation de la présentation client',
-        status: 'submitted',
-        start_time: '14:00',
-        end_time: '15:00',
-        duration_seconds: 3600
-      },
-      {
-        id: 3,
-        date: '2024-01-09',
-        task_title: 'Code review - Module authentification',
-        project_name: 'Développement',
-        hours: 3.0,
-        description: 'Revue du code et corrections',
-        status: 'draft',
-        start_time: '10:00',
-        end_time: '13:00',
-        duration_seconds: 10800
-      },
-      {
-        id: 4,
-        date: '2024-01-10',
-        task_title: 'Mise à jour documentation',
-        project_name: 'Documentation',
-        hours: 1.5,
-        description: 'Mise à jour des guides utilisateur',
-        status: 'approved',
-        start_time: '09:30',
-        end_time: '11:00',
-        duration_seconds: 5400
-      }
-    ];
-
-    this.filterEntries();
-    this.calculateSummaries();
+      error: () => { this.loading = false; }
+    });
   }
 
-  filterEntries() {
-    this.filteredEntries = this.timesheetEntries.filter(entry => {
-      if (this.selectedStatus !== 'all' && entry.status !== this.selectedStatus) {
-        return false;
-      }
+  applyFilters(): void {
+    const { start, end } = this.periodRange();
+    this.filtered = this.allEntries.filter(e => {
+      if (!e.date_raw) return false;
+      const d = new Date(e.date_raw);
+      if (d < start || d > end) return false;
+      if (this.statusFilter !== 'all' && e.status !== this.statusFilter) return false;
       return true;
     });
+    this.buildDaySummaries();
+    this.buildWeekSummaries();
   }
 
-  calculateSummaries() {
-    // Calcul des résumés journaliers
-    const dailyMap = new Map<string, TimesheetEntry[]>();
+  private periodRange(): { start: Date; end: Date } {
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const end = new Date(today); end.setHours(23, 59, 59);
 
-    this.timesheetEntries.forEach(entry => {
-      if (!dailyMap.has(entry.date)) {
-        dailyMap.set(entry.date, []);
+    switch (this.period) {
+      case 'current_week': {
+        const start = new Date(today);
+        start.setDate(today.getDate() - ((today.getDay() + 6) % 7)); // lundi
+        return { start, end };
       }
-      dailyMap.get(entry.date)!.push(entry);
-    });
-
-    this.dailySummaries = Array.from(dailyMap.entries()).map(([date, entries]) => ({
-      date,
-      totalHours: entries.reduce((sum, entry) => sum + entry.hours, 0),
-      totalSeconds: entries.reduce((sum, entry) => sum + entry.duration_seconds, 0),
-      entries
-    }));
-
-    // Calcul des résumés hebdomadaires
-    this.calculateWeeklySummaries();
-  }
-
-  calculateWeeklySummaries() {
-    const weeks = new Map<string, TimesheetEntry[]>();
-
-    this.timesheetEntries.forEach(entry => {
-      const date = new Date(entry.date);
-      const weekStart = new Date(date);
-      weekStart.setDate(date.getDate() - date.getDay()); // Dimanche comme début de semaine
-      const weekKey = weekStart.toISOString().split('T')[0];
-
-      if (!weeks.has(weekKey)) {
-        weeks.set(weekKey, []);
+      case 'last_week': {
+        const start = new Date(today);
+        start.setDate(today.getDate() - ((today.getDay() + 6) % 7) - 7);
+        const e = new Date(start); e.setDate(start.getDate() + 6); e.setHours(23, 59, 59);
+        return { start, end: e };
       }
-      weeks.get(weekKey)!.push(entry);
-    });
-
-    this.weeklySummaries = Array.from(weeks.entries()).map(([weekStart, entries]) => {
-      const startDate = new Date(weekStart);
-      const endDate = new Date(startDate);
-      endDate.setDate(startDate.getDate() + 6);
-
-      const dailySummaries = this.dailySummaries.filter(summary => {
-        const summaryDate = new Date(summary.date);
-        return summaryDate >= startDate && summaryDate <= endDate;
-      });
-
-      return {
-        weekStart,
-        weekEnd: endDate.toISOString().split('T')[0],
-        totalHours: entries.reduce((sum, entry) => sum + entry.hours, 0),
-        totalSeconds: entries.reduce((sum, entry) => sum + entry.duration_seconds, 0),
-        dailySummaries
-      };
-    });
-  }
-
-  setViewMode(mode: 'daily' | 'weekly') {
-    this.viewMode = mode;
-  }
-
-  formatDate(dateString: string): string {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('fr-FR', {
-      weekday: 'long',
-      day: 'numeric',
-      month: 'long'
-    });
-  }
-
-  formatTime(timeString: string): string {
-    return timeString;
-  }
-
-  formatDuration(seconds: number): string {
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-    return `${hours}h ${minutes}m`;
-  }
-
-  formatWeekRange(start: string, end: string): string {
-    const startDate = new Date(start);
-    const endDate = new Date(end);
-    const startStr = startDate.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
-    const endStr = endDate.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
-    return `${startStr} - ${endStr}`;
-  }
-
-  formatDayName(dateString: string): string {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('fr-FR', { weekday: 'short' });
-  }
-
-  getStatusLabel(status: string): string {
-    switch (status) {
-      case 'draft': return 'Brouillon';
-      case 'submitted': return 'Soumis';
-      case 'approved': return 'Approuvé';
-      case 'rejected': return 'Rejeté';
-      default: return status;
+      case 'current_month': {
+        const start = new Date(today.getFullYear(), today.getMonth(), 1);
+        return { start, end };
+      }
+      case 'last_month': {
+        const start = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+        const e = new Date(today.getFullYear(), today.getMonth(), 0); e.setHours(23, 59, 59);
+        return { start, end: e };
+      }
+      case 'last_30_days': {
+        const start = new Date(today); start.setDate(today.getDate() - 29);
+        return { start, end };
+      }
+      default: // 'all'
+        return { start: new Date(0), end };
     }
   }
 
-  get totalSeconds(): number {
-    return this.timesheetEntries.reduce((sum, entry) => sum + entry.duration_seconds, 0);
+  private buildDaySummaries(): void {
+    const map = new Map<string, TimesheetEntry[]>();
+    for (const e of this.filtered) {
+      if (!map.has(e.date_raw)) map.set(e.date_raw, []);
+      map.get(e.date_raw)!.push(e);
+    }
+    this.daySummaries = Array.from(map.entries())
+      .sort(([a], [b]) => b.localeCompare(a))
+      .map(([date, entries]) => ({
+        date,
+        totalHours: entries.reduce((s, e) => s + e.hours, 0),
+        entries
+      }));
   }
 
-  get totalEntries(): number {
-    return this.timesheetEntries.length;
+  private buildWeekSummaries(): void {
+    const weekMap = new Map<string, TimesheetEntry[]>();
+    for (const e of this.filtered) {
+      const d = new Date(e.date_raw);
+      const mon = new Date(d); mon.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+      const key = mon.toISOString().split('T')[0];
+      if (!weekMap.has(key)) weekMap.set(key, []);
+      weekMap.get(key)!.push(e);
+    }
+    this.weekSummaries = Array.from(weekMap.entries())
+      .sort(([a], [b]) => b.localeCompare(a))
+      .map(([weekStart, entries]) => {
+        const start = new Date(weekStart);
+        const end = new Date(start); end.setDate(start.getDate() + 6);
+        // Build 7 days
+        const days: DaySummary[] = [];
+        for (let i = 0; i < 7; i++) {
+          const d = new Date(start); d.setDate(start.getDate() + i);
+          const dStr = d.toISOString().split('T')[0];
+          const dayEntries = entries.filter(e => e.date_raw === dStr);
+          days.push({ date: dStr, totalHours: dayEntries.reduce((s, e) => s + e.hours, 0), entries: dayEntries });
+        }
+        return {
+          label: `${this.shortDate(weekStart)} — ${this.shortDate(end.toISOString().split('T')[0])}`,
+          weekStart,
+          weekEnd: end.toISOString().split('T')[0],
+          totalHours: entries.reduce((s, e) => s + e.hours, 0),
+          days
+        };
+      });
   }
 
-  get averageHoursPerDay(): number {
-    const uniqueDays = new Set(this.timesheetEntries.map(entry => entry.date)).size;
-    return uniqueDays > 0 ? (this.totalSeconds / 3600) / uniqueDays : 0;
+  // ── Stats ──────────────────────────────────────────
+  get totalHours(): number { return this.filtered.reduce((s, e) => s + e.hours, 0); }
+  get avgPerDay(): number {
+    const days = new Set(this.filtered.map(e => e.date_raw)).size;
+    return days > 0 ? this.totalHours / days : 0;
   }
+  get maxDayHours(): number {
+    return Math.max(0, ...this.daySummaries.map(d => d.totalHours));
+  }
+  get approvedCount(): number { return this.filtered.filter(e => e.status === 'approved').length; }
 
-  get maxDaySeconds(): number {
-    return Math.max(...this.dailySummaries.map(day => day.totalSeconds), 0);
+  // ── Formatters ─────────────────────────────────────
+  formatDate(iso: string): string {
+    return new Date(iso).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  }
+  shortDate(iso: string): string {
+    return new Date(iso).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
+  }
+  dayName(iso: string): string {
+    return new Date(iso).toLocaleDateString('fr-FR', { weekday: 'short' }).toUpperCase();
+  }
+  statusLabel(s: string): string {
+    return ({ pending: 'En attente', submitted: 'Soumis', approved: 'Approuvé', rejected: 'Rejeté' } as any)[s] ?? s;
   }
 }

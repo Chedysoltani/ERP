@@ -7,10 +7,61 @@
     </div>
     <div class="header-right">
       <div class="header-actions">
-        <button class="btn-notification" title="Notifications">
-          <i class="bi bi-bell"></i>
-          <span class="notification-badge" *ngIf="taskNotificationCount > 0">{{ taskNotificationCount }}</span>
-        </button>
+        <div class="notif-wrap" (click)="$event.stopPropagation()">
+          <button class="btn-notification" (click)="toggleNotifDropdown($event)"
+                  [class.active]="showNotifDropdown" title="Notifications">
+            <i class="bi bi-bell-fill" *ngIf="taskNotificationCount > 0"></i>
+            <i class="bi bi-bell" *ngIf="taskNotificationCount === 0"></i>
+            <span class="notification-badge" *ngIf="taskNotificationCount > 0">
+              {{ taskNotificationCount > 99 ? '99+' : taskNotificationCount }}
+            </span>
+          </button>
+
+          <!-- Dropdown notifications -->
+          <div class="notif-panel" [class.open]="showNotifDropdown">
+            <div class="notif-panel-header">
+              <div class="notif-panel-title">
+                <i class="bi bi-bell-fill"></i>
+                Notifications
+                <span class="notif-count-chip" *ngIf="taskNotificationCount > 0">
+                  {{ taskNotificationCount }} nouvelle{{ taskNotificationCount > 1 ? 's' : '' }}
+                </span>
+              </div>
+              <button class="notif-read-all" (click)="markAllRead()"
+                      *ngIf="taskNotificationCount > 0" title="Tout marquer comme lu">
+                <i class="bi bi-check2-all"></i> Tout lire
+              </button>
+            </div>
+
+            <div class="notif-panel-body">
+              <!-- Notifications depuis la DB -->
+              <div class="notif-entry" *ngFor="let n of notifications"
+                   [class.unread]="!n.is_read"
+                   (click)="openTask(n)">
+                <div class="notif-entry-icon" [class.unread]="!n.is_read">
+                  <i class="bi bi-list-task"></i>
+                </div>
+                <div class="notif-entry-body">
+                  <p class="notif-entry-msg">{{ n.message }}</p>
+                  <span class="notif-entry-time">{{ n.timeAgo }}</span>
+                </div>
+                <div class="notif-entry-dot" *ngIf="!n.is_read"></div>
+              </div>
+
+              <!-- État vide -->
+              <div class="notif-empty" *ngIf="notifications.length === 0">
+                <i class="bi bi-inbox"></i>
+                <span>Aucune notification</span>
+              </div>
+            </div>
+
+            <div class="notif-panel-footer" *ngIf="notifications.length > 0">
+              <button class="notif-view-tasks" (click)="openTask({id:0, is_read:true})">
+                <i class="bi bi-arrow-right-circle me-1"></i>Voir mes tâches
+              </button>
+            </div>
+          </div>
+        </div>
         <button class="btn-profile" title="Profil">
           <i class="bi bi-person-circle"></i>
         </button>

@@ -94,17 +94,30 @@
           <div class="notif-dropdown" [class.open]="showNotifications">
             <div class="notif-header">
               <span>Notifications</span>
-              <span class="notif-count">{{unreadNotifications}} nouvelles</span>
+              <button class="notif-mark-all" (click)="markAllRead()" *ngIf="unreadNotifications > 0">
+                Tout lire
+              </button>
+              <span class="notif-count" *ngIf="unreadNotifications === 0">Tout lu</span>
             </div>
             <div class="notif-list">
-              <div class="notif-item" *ngFor="let n of notifications" [class.unread]="!n.read" (click)="n.read = true">
+              <div class="notif-item" *ngFor="let n of notifications"
+                   [class.unread]="!n.read" (click)="markNotifRead(n)">
                 <div class="notif-icon-wrap" [class]="'notif-color-' + n.color">
                   <i class="bi" [class]="n.icon"></i>
                 </div>
                 <div class="notif-body">
                   <div class="notif-text">{{n.text}}</div>
-                  <div class="notif-time">{{n.time}}</div>
+                  <div class="notif-time">
+                    <span class="notif-detail">{{n.detail}}</span>
+                    <span class="notif-sep">·</span>
+                    {{n.time}}
+                  </div>
                 </div>
+                <div class="notif-unread-dot" *ngIf="!n.read"></div>
+              </div>
+              <div class="notif-empty" *ngIf="notifications.length === 0">
+                <i class="bi bi-bell-slash"></i>
+                <span>Aucune notification récente</span>
               </div>
             </div>
           </div>

@@ -216,6 +216,100 @@ router.post('/permissions', auth, isAdmin, async (req, res) => {
   }
 });
 
+// ── NOTIFICATIONS (générées depuis les événements DB) ────────────────────────
+router.get('/notifications', auth, isAdmin, async (req, res) => {
+  try {
+    const notifs = [];
+
+    // Nouveaux utilisateurs (48h)
+    const newUsers = await db.query(
+      `SELECT id, nom, prenom, role, date_creation as time
+       FROM users WHERE date_creation >= DATE_SUB(NOW(), INTERVAL 48 HOUR)
+       ORDER BY date_creation DESC LIMIT 5`
+    );
+    for (const u of newUsers) {
+      notifs.push({
+        id: `new_user_${u.id}`,
+        type: 'new_user',
+        icon: 'bi-person-plus-fill',
+        color: 'success',
+        text: `Nouvel utilisateur inscrit : ${u.prenom} ${u.nom}`,
+        detail: u.role === 'admin' ? 'Administrateur' : u.role === 'manager' ? 'Manager' : 'Employé',
+        time: u.time
+      });
+    }
+
+    // Comptes désactivés (24h)
+    const deactivated = await db.query(
+      `SELECT id, nom, prenom, date_modification as time
+       FROM users WHERE actif=0 AND date_modification >= DATE_SUB(NOW(), INTERVAL 24 HOUR)
+       ORDER BY date_modification DESC LIMIT 3`
+    );
+    for (const u of deactivated) {
+      notifs.push({
+        id: `deactivated_${u.id}`,
+        type: 'deactivated',
+        icon: 'bi-person-x-fill',
+        color: 'warning',
+        text: `Compte désactivé : ${u.prenom} ${u.nom}`,
+        detail: 'Accès révoqué',
+        time: u.time
+      });
+    }
+
+    // Présences aujourd'hui
+    let attCount = 0;
+    try {
+      const attRows = await db.query(
+        "SELECT COUNT(*) as v FROM attendance WHERE DATE(check_in)=CURDATE()"
+      );
+      attCount = attRows[0].v;
+    } catch (_) {}
+    if (attCount > 0) {
+      notifs.push({
+        id: `attendance_${new Date().toISOString().slice(0,10)}`,
+        type: 'attendance',
+        icon: 'bi-calendar-check-fill',
+        color: 'info',
+        text: `${attCount} présence${attCount > 1 ? 's' : ''} enregistrée${attCount > 1 ? 's' : ''} aujourd'hui`,
+        detail: 'Pointage du jour',
+        time: new Date()
+      });
+    }
+
+    // Modifications récentes (autres que création — mises à jour de profil)
+    const modified = await db.query(
+      `SELECT id, nom, prenom, date_modification as time
+       FROM users
+       WHERE date_modification >= DATE_SUB(NOW(), INTERVAL 24 HOUR)
+         AND date_modification != date_creation
+         AND actif = 1
+       ORDER BY date_modification DESC LIMIT 3`
+    );
+    for (const u of modified) {
+      // Éviter les doublons avec les nouveaux utilisateurs
+      if (!notifs.find(n => n.id === `new_user_${u.id}`)) {
+        notifs.push({
+          id: `modified_${u.id}_${new Date(u.time).getTime()}`,
+          type: 'modified',
+          icon: 'bi-pencil-square',
+          color: 'info',
+          text: `Profil modifié : ${u.prenom} ${u.nom}`,
+          detail: 'Mise à jour du compte',
+          time: u.time
+        });
+      }
+    }
+
+    // Trier par date décroissante
+    notifs.sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime());
+
+    res.json({ success: true, data: notifs.slice(0, 12) });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
 // ── SETTINGS (persistés en DB) ───────────────────────────────────────────────
 router.get('/settings', auth, isAdmin, async (req, res) => {
   try {

@@ -258,6 +258,26 @@ router.get('/notifications/employee/:employeeId', async (req, res) => {
   }
 });
 
+// Marquer une notification comme lue
+router.patch('/notifications/:id/read', async (req, res) => {
+  try {
+    await db.query('UPDATE task_notifications SET is_read=1 WHERE id=?', [req.params.id]);
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// Marquer toutes les notifications d'un employé comme lues
+router.patch('/notifications/employee/:employeeId/read-all', async (req, res) => {
+  try {
+    await db.query('UPDATE task_notifications SET is_read=1 WHERE employee_id=?', [req.params.employeeId]);
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
 // Alertes : prédécesseur en retard qui bloque encore une tâche du projet
 router.get('/dependency-alerts/:projectId', async (req, res) => {
   try {

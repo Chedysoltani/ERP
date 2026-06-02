@@ -177,24 +177,39 @@
           </div>
         </div>
 
-        <!-- Statistiques de l'employé -->
+        <!-- Statistiques de l'employé — données réelles DB -->
         <div class="employee-stats">
           <div class="stat-item">
-            <div class="stat-label">Disponibilité</div>
+            <div class="stat-label">Disponibilité réelle</div>
             <div class="stat-value">
-              <span class="availability-bar" 
+              <span class="availability-bar"
                     [style.width.%]="employee.availability"
                     [style.background-color]="getAvailabilityColor(employee.availability)"></span>
               <span class="availability-text">{{ employee.availability }}%</span>
             </div>
           </div>
           <div class="stat-item">
-            <div class="stat-label">Charge de travail</div>
+            <div class="stat-label">Charge actuelle</div>
             <div class="stat-value">
-              <span class="workload-bar" 
+              <span class="workload-bar"
                     [style.width.%]="employee.workload"
                     [style.background-color]="getWorkloadColor(employee.workload)"></span>
               <span class="workload-text">{{ employee.workload }}%</span>
+            </div>
+          </div>
+          <div class="stat-item" *ngIf="employee.activeTasks !== undefined">
+            <div class="stat-label">Tâches actives</div>
+            <div class="stat-value">
+              <span class="active-tasks-badge"
+                    [class.busy]="(employee.activeTasks || 0) >= 5"
+                    [class.moderate]="(employee.activeTasks || 0) >= 2 && (employee.activeTasks || 0) < 5"
+                    [class.free]="(employee.activeTasks || 0) < 2">
+                <i class="bi bi-list-task"></i>
+                {{ employee.activeTasks || 0 }} tâche{{ (employee.activeTasks || 0) !== 1 ? 's' : '' }}
+                <ng-container *ngIf="(employee.activeTasksHours || 0) > 0">
+                  ({{ employee.activeTasksHours }}h estimées)
+                </ng-container>
+              </span>
             </div>
           </div>
         </div>

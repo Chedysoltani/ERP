@@ -16,6 +16,14 @@ export class EmployeeService {
     return this.http.get(`${this.tasksBase}/notifications/employee/${employeeId}`);
   }
 
+  markNotificationRead(notifId: number): Observable<any> {
+    return this.http.patch(`${this.tasksBase}/notifications/${notifId}/read`, {});
+  }
+
+  markAllNotificationsRead(employeeId: number): Observable<any> {
+    return this.http.patch(`${this.tasksBase}/notifications/employee/${employeeId}/read-all`, {});
+  }
+
   // Récupérer le dashboard complet de l'employé
   getEmployeeDashboard(employeeId: number): Observable<any> {
     return this.http.get(`${this.baseUrl}/${employeeId}/dashboard`);
